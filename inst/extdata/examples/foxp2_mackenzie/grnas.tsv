@@ -1,0 +1,14 @@
+# CasPEX input manifest (Mackenzie 2026 FOXP2 reanalysis)
+# Per-sgRNA logFC vs NoG+ (3 vs 3 Welch t on log2 PD-grouped abundances).
+# Genomic coordinates (hg38, chr7, FOXP2 forward strand):
+#   R1 (g1)  chr7:114087491-114087513
+#   R2 (g2)  chr7:114087494-114087516       <- overlaps R1 by ~15 bp (same site, 3 bp apart)
+#   R3 (g3)  chr7:114087279-114087301       <- ~210 bp upstream of R1/R2
+# Effective spatial resolution: 2 distinct sites (R1≈R2, plus R3) over a
+# ~240 bp tile - similar narrowness to Myers MYC. Deconvolution will produce
+# one broad zone covering the tile rather than crisp separation.
+# Columns: region<TAB>sequence<TAB>data_file
+region	sequence	data_file
+R1	CAGACACCTTTCGGTGATAG	Region1.txt
+R2	ACACCTTTCGGTGATAGGGG	Region2.txt
+R3	TTATCCCGAAGCGTCAGTAG	Region3.txt

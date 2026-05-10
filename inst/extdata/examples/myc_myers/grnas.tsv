@@ -1,0 +1,9 @@
+# CasPEX input manifest (Myers 2018 reanalysis)
+# MYC reanalysis (Myers 2018, Nat Methods). 5 sgRNAs ordered west->east. Per-guide proteomics enrichment used as logFC; P.Value synthesized via per-column robust z.
+# Columns: region<TAB>sequence<TAB>data_file
+region	sequence	data_file
+R1	TGGGACTCTTGATCAAAGCG	Region1.txt
+R2	GCGCGCGTAGTTAATTCATG	Region2.txt
+R3	TCCCGGGTTCCCAAAGCAG	Region3.txt
+R4	GTGGGCGGAGATTAGCGAGAG	Region4.txt
+R5	CCCCGAGCTGTGCTGCTCG	Region5.txt

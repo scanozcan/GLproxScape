@@ -1,0 +1,158 @@
+---
+title: "FOXP2 promoter reanalysis (Mackenzie 2026)"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{FOXP2 promoter reanalysis (Mackenzie 2026)}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment  = "#>",
+  fig.width  = 7,
+  fig.height = 4
+)
+```
+
+# Overview
+
+This vignette walks through the FOXP2 promoter reanalysis from the
+GLproxScape paper, using the dataset of Mackenzie et al. (2026, *Mol Cell
+Proteomics*): three sgRNAs tiled across the FOXP2 promoter (R1 / R2
+overlapping by ~15 bp at the anterior site, R3 ~210 bp upstream), profiled
+with dCas9-APEX2 proximity proteomics in HEK293 cells.
+
+The point of the walkthrough is to show the end-to-end pipeline:
+load inputs → run the spatial deconvolution → inspect the binding-event
+table → render the per-TF deconvolution deck. Heavy chunks
+(`run_caspex()`, `run_caspex_extras()`) are not evaluated when this
+vignette is built (they hit Ensembl, JASPAR and ChIP-Atlas over the
+network and would slow `R CMD check` to a crawl), but every line is a
+copy-paste-able recipe you can run interactively.
+
+# Setup
+
+```{r setup}
+library(GLproxScape)
+```
+
+# 1. Load bundled inputs
+
+GLproxScape ships the Mackenzie FOXP2 inputs under `inst/extdata/` so
+this walkthrough is fully self-contained.
+
+```{r inputs}
+inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
+                          package = "GLproxScape")
+list.files(inputs_dir)
+```
+
+The input bundle has the canonical layout: a `grnas.tsv` manifest mapping
+each region to its sgRNA protospacer and to the per-region proteomics
+table, plus three `Region*.txt` files holding logFC + p-value columns.
+
+```{r load-inputs}
+inputs <- load_caspex_inputs(inputs_dir)
+str(inputs, max.level = 1)
+inputs$grnas
+```
+
+# 2. Anchor on the right transcript
+
+FOXP2 has many alternative promoters; the canonical Ensembl FOXP2-201
+(`ENST00000350908`) sits ~328 kb downstream of the cut sites Mackenzie
+targeted, so we anchor on the alternative transcript whose TSS sits
+right under their guide layout (`ENST00000901759`,
+chr7:114,086,317; +1185/+1188/+973 from R1/R2/R3).
+
+# 3. Run the spatial deconvolution
+
+```{r run-caspex, eval = FALSE}
+res <- run_caspex(
+  gene             = "FOXP2",
+  transcript       = "ENST00000901759",
+  grnas            = inputs$grnas,
+  data_files       = inputs$data_files,
+  upstream         = 200,
+  downstream       = 2000,
+  out_dir          = tempfile("foxp2_run_"),
+  weight_mode      = "lfc_signed",
+  pval_thresh      = 0.5,
+  motif_thresh     = 0.75,
+  chipatlas        = FALSE   # set TRUE for the ChIP-Atlas overlay (~50 SRX/TF)
+)
+```
+
+# 4. Inspect the result
+
+The list returned by `run_caspex()` exposes (among other things)
+`binding_events` (one row per called event), `spatial_df` (one row per
+spatially-modelled TF), `pos_map` (gRNA TSS-relative positions),
+`promoter_info` (the sequence and TSS offset), and `motif_results` (per-TF
+JASPAR scan).
+
+```{r inspect, eval = FALSE}
+# Top motif-anchored events, sorted by amplitude
+head(res$binding_events[order(-res$binding_events$weight), ], 10)
+
+# How many events per TF?
+table(res$binding_events$tf)
+
+# A quick look at where MEIS1 was called
+res$binding_events[res$binding_events$tf == "MEIS1",
+                   c("position", "weight", "n_motifs_merged", "motif_based")]
+```
+
+# 5. Diagnostic deck
+
+The full plot pack (motif-vs-NNLS scatter, TF co-occurrence triangle,
+sigma sensitivity, jackknife stability, etc.) is one call:
+
+```{r extras, eval = FALSE}
+extras <- run_caspex_extras(
+  res,
+  out_dir = file.path(res$out_dir, "extras")
+)
+```
+
+# 6. Switching anchors / weighting / network overlays
+
+Two knobs that are worth knowing about for the FOXP2 reanalysis:
+
+`motif_score_weight` lets you bias bubble amplitudes toward higher-PWM
+motifs within each cluster. Default `"none"` is unweighted. `"linear"`
+multiplies each candidate's weight by its score-fraction; `"log"` uses
+`2^(score_frac - 1)`. Above any reasonable scan threshold the surviving
+score range is narrow and predictions are robust to the choice — see the
+`vignette("foxp2-mackenzie")` figures or just compare three runs
+yourself by passing each value to `run_caspex()`.
+
+`chipatlas = TRUE` adds an independent-validation lane below the
+predicted-event bubbles. The first call downloads ~300 MB of metadata,
+caches it under `tools::R_user_dir("caspex", "cache")`, and then fetches
+per-SRX BED files on demand (small, also cached). Pass
+`special_interest_gene = c("EP300", "CTCF", ...)` to bypass the per-TF
+SRX cap for specific factors.
+
+# Reproducing the paper figures
+
+The paper's Figure 2 panels (MAX, FOXA1, GATA4/TFAP4, HMGB1) are pulled
+from the per-TF binding-deconvolution deck (`binding_deconvolution.pdf`
+in the run output directory). Figure S2A is the A5 TF co-occurrence
+triangle from the extras pack. Figure S2C — the comparison across
+`motif_score_weight` settings — is reproduced by running `run_caspex()`
+three times with `motif_score_weight = "none" / "linear" / "log"` and
+plotting the three event sets side-by-side.
+
+# Citing GLproxScape
+
+If you use GLproxScape in your work, please cite Ozcan et al. (in
+preparation) and Mackenzie et al. 2026 for the underlying dataset.
+
+# Session info
+
+```{r session-info}
+sessionInfo()
+```

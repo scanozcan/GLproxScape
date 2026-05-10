@@ -1,0 +1,39 @@
+Package: GLproxScape
+Type: Package
+Title: Spatial Deconvolution of dCas9-APEX2 Proximity Proteomics
+Version: 0.1.0
+Authors@R: person(given = "Can",
+                  family = "Ozcan",
+                  role = c("aut", "cre"),
+                  email = "s.canozcan89@gmail.com")
+Description: Spatial deconvolution of dCas9-APEX2 proximity proteomics data
+    into transcription factor and chromatin-regulator binding predictions.
+    Models each guide's biotinylation footprint as a Gaussian labelling kernel
+    around the cut site and recovers motif-anchored binding events via
+    non-negative least squares against JASPAR position weight matrices.
+    Includes coverage-aware deconvolution, optional PWM-score weighting, a
+    zone-based path for sequence-specific-motif-less chromatin factors, and
+    an optional ChIP-Atlas overlay for independent peak validation.
+License: MIT + file LICENSE
+URL: https://github.com/scanozcan/GLproxScape
+BugReports: https://github.com/scanozcan/GLproxScape/issues
+Encoding: UTF-8
+Depends:
+    R (>= 4.1.0)
+Imports:
+    ggplot2,
+    grDevices,
+    httr,
+    nnls,
+    patchwork,
+    scales,
+    stats,
+    tools,
+    utils
+Suggests:
+    rstudioapi,
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/roxygen2/version: 8.0.0
