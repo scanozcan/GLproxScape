@@ -3,7 +3,7 @@ title: "FOXP2 promoter reanalysis (Mackenzie 2026)"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{FOXP2 promoter reanalysis (Mackenzie 2026)}
-  %\VignetteEngine{knitr::knitr}
+  %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
 
