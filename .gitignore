@@ -50,3 +50,6 @@ rsconnect/
 
 # Run outputs (regenerated each run; not source)
 inst/extdata/examples/*/caspex_output*/
+
+# Claude / local agent metadata (already in .Rbuildignore for the tarball)
+.claude/
