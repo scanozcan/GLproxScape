@@ -3258,7 +3258,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'
 #' @section Detail deck:
 #' @param detail_top_n How many top TFs to render on the per-TF
-#'   deconvolution detail PDF (default 12).
+#'   deconvolution detail PDF (default 100).
 #' @param deconv_min_motif_hits Minimum number of JASPAR hits in the
 #'   promoter window required for a TF to appear on the detail PDF.
 #'   Default 0 (no filter); set > 0 to focus the deck on TFs with motif-
@@ -3443,7 +3443,7 @@ run_caspex <- function(
     special_interest_gene   = NULL,
     special_interest_cap    = NULL,
     chipatlas_quiet         = TRUE,
-    detail_top_n     = 12,
+    detail_top_n     = 100,
     # `deconv_min_motif_hits` filters which TFs land on Plot 10
     # (binding_deconvolution.pdf). Default 0 = keep legacy behaviour of
     # rendering one page per motif-scanned TF (the common + region-specific

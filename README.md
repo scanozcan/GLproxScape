@@ -376,7 +376,7 @@ this as a quick lookup; the same content lives (with longer prose) in
 
 #### Detail deck filters
 
-- `detail_top_n` = `12` — number of TFs on the per-TF deconvolution
+- `detail_top_n` = `100` — number of TFs on the per-TF deconvolution
   detail PDF.
 - `deconv_min_motif_hits` = `0` — minimum JASPAR hits in window for
   a TF to appear on the detail deck (0 disables).
