@@ -89,6 +89,177 @@ extras_epi <- run_caspex_epigenetic(
 )
 ```
 
+## How to use it on your own data
+
+GLproxScape expects each promoter-tiling experiment to live in a
+folder with one **manifest** file plus one **proteomics table** per
+gRNA region. Once the folder is laid out, the entire analysis is two
+function calls.
+
+### Folder layout
+
+```
+my_atp7b_analysis/
+├── inputs/
+│   ├── grnas.tsv        ← manifest: which gRNA is which region, and where its data lives
+│   ├── Region1.txt      ← per-region proteomics table (one per sgRNA)
+│   ├── Region2.txt
+│   ├── Region3.txt
+│   └── ...
+└── analysis.R           ← your runner script (whatever you want to call it)
+```
+
+The folder name is up to you. What matters is that `inputs/grnas.tsv`
+points at the `Region*.txt` files that sit next to it.
+
+### `grnas.tsv` — the manifest
+
+A tab-separated file with three required columns: `region`, `sequence`,
+`data_file`. One row per gRNA region. Lines starting with `#` and blank
+lines are ignored, so the top of the file can carry provenance notes.
+
+```
+# ATP7B promoter tiling, 7 sgRNAs (hg38, chr13, + strand)
+region	sequence	data_file
+R1	GAAATCCAGGAGTCATATAA	Region1.txt
+R2	GGCAGTCAATATCATACCAG	Region2.txt
+R3	AGTAGACAGGTCAACCATTG	Region3.txt
+R4	GAATGGAGGCAGTGCTACTA	Region4.txt
+R5	TCAGCACTATATACATATGG	Region5.txt
+R6	TTCTGAAGAGATAGCAACAA	Region6.txt
+R7	TTGATGCTCAATGGAGGTGT	Region7.txt
+```
+
+Notes:
+- `region` IDs are arbitrary labels (`R1`, `R2`, ... or `5kb`,
+  `proximal`, `TSS`, anything you like). They become the column
+  prefixes in the engine's outputs and the lane labels on plots.
+- `sequence` is the protospacer (typically 20 bp). The PAM is optional;
+  the engine matches against the promoter sequence with or without it.
+  Set the cell to `NA` (or leave it blank) if a region was profiled but
+  doesn't have a gRNA — that region still contributes its proteomics
+  data but no cut-site tick is drawn.
+- `data_file` is the per-region proteomics table filename, resolved
+  relative to the manifest's folder.
+
+### `Region*.txt` — the per-region proteomics tables
+
+Tab-separated tables with at minimum a protein-name column, a logFC
+column, and a p-value column. Column-name matching is case-insensitive
+and tolerates common aliases:
+
+```
+name	logFC	P.Value	t	TFDatabase
+POLL	1.648799	0.0164533	2.981229	absent
+ETFA	1.523198	0.0643181	2.125487	absent
+ZNF286B	0.993416	0.179416	1.463346	absent
+GPC6	0.965345	0.064466	2.124047	absent
+...
+```
+
+Recognised name aliases:
+- protein column: `name`, `gene`, `protein`, `symbol`
+- logFC column: `logFC`, `log2FC`, `log_fc`
+- p-value column: `P.Value`, `pvalue`, `p_value`, `p`
+- moderated t (optional): `t`, `t_stat`, `moderated_t`
+- TFDatabase membership flag (optional): `TFDatabase`, `tf_db`, `is_tf`
+
+If you don't have a `t` column, GLproxScape derives a signed z-score
+from the p-value as the default weight (`weight_mode = "z"`). If you
+do have moderated-t from limma, set `weight_mode = "mod_t"` in
+`run_caspex()` to use it.
+
+The protein column should hold HGNC symbols. Anything else (Ensembl
+IDs, UniProt accessions) won't intersect cleanly with the JASPAR
+motif database or the bundled TF / EpiFactors universes.
+
+### Running the analysis
+
+Once the folder is laid out, the runner is short. From an R session
+opened in the parent folder:
+
+```r
+library(GLproxScape)
+
+# 1) Load the inputs
+inputs <- load_caspex_inputs("my_atp7b_analysis/inputs")
+
+# 2) Run the full pipeline
+res <- run_caspex(
+  gene             = "ATP7B",
+  transcript       = "canonical",          # or "ENST..." for an alt-promoter
+  grnas            = inputs$grnas,
+  data_files       = inputs$data_files,
+  upstream         = 3250,                  # bp window upstream of TSS
+  downstream       = 100,                   # bp window downstream of TSS
+  out_dir          = "my_atp7b_analysis/caspex_output",
+  weight_mode      = "z",
+  motif_thresh     = 0.75,                  # JASPAR PWM threshold (frac of max)
+  chipatlas        = TRUE                   # set FALSE if you don't want the overlay
+)
+
+# 3) Optional: diagnostic plot pack (sigma sensitivity, jackknife, TF co-occurrence, ...)
+run_caspex_extras(res, out_dir = file.path(res$out_dir, "extras"))
+
+# 4) Optional: chromatin-factor zone-based deck (BRD4, KMT2A, SMARCA4, ...)
+run_caspex_epigenetic(
+  res,
+  epigenetic_factors = readLines(system.file(
+    "extdata/databases/EpiGenes_main.csv", package = "GLproxScape")),
+  out_dir            = file.path(res$out_dir, "epigenetic")
+)
+```
+
+After this, `my_atp7b_analysis/caspex_output/` contains the
+binding-deconvolution PDF, the per-region heatmap, the gRNA-positions
+plot, and the predictions CSVs.
+
+### Picking the right transcript anchor with `check_transcripts()`
+
+Most genes have several alternative promoters, and the canonical
+Ensembl transcript isn't always the one your sgRNAs target. Running
+the pipeline against the wrong transcript can silently produce zero
+sgRNA matches (and therefore zero meaningful predictions). Use
+`check_transcripts()` BEFORE picking the `transcript = "ENST..."`
+argument:
+
+```r
+library(GLproxScape)
+df <- check_transcripts(
+  gene          = "ATP7B",
+  manifest_path = "my_atp7b_analysis/inputs"
+)
+head(df, 5)
+```
+
+The function prints a per-transcript table to the console — one row
+per Ensembl transcript, with the TSS coordinate, biotype, canonical
+flag, and which sgRNAs matched at which TSS-relative bp position. It
+finishes with a one-line recommendation like:
+
+```
+=== Recommendation ===
+Best transcript: ENST00000242839  (7 / 7 sgRNAs matched)
+Use in run_caspex():  transcript = "ENST00000242839"
+```
+
+Paste the recommended ENST into `run_caspex(transcript = ...)` and
+you're done. Common follow-up tweaks:
+
+- **None of your sgRNAs match any transcript.** Either the sequences
+  in `grnas.tsv` are reverse-complemented (re-check against the
+  publication), or your gene's relevant alt-promoter is a non-coding
+  transcript (set `biotype_filter = NULL` in `check_transcripts()` to
+  scan every biotype).
+- **Multiple transcripts tie at the same `n_matched`.** Prefer the
+  canonical one (`is_canonical = TRUE`); if no canonical ties, prefer
+  the transcript whose sgRNA positions cluster *tightest* around the
+  TSS — that's the one the spatial deconvolution will best resolve.
+- **An alt-promoter sits hundreds of kb from the canonical TSS** (the
+  Mackenzie FOXP2 case). `check_transcripts()` surfaces this clearly;
+  just pin the ENST from the recommendation and `run_caspex()` does
+  the right thing.
+
 ## Bundled example datasets
 
 Under `inst/extdata/examples/`, resolvable at runtime via `system.file()`:

@@ -4157,6 +4157,196 @@ rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
   run_motif_scan(tf_names, result$promoter_info, threshold_frac)
 }
 
+
+#' Audit which Ensembl transcript best matches your sgRNA layout
+#'
+#' Pre-flight diagnostic for any new GLproxScape analysis. For the
+#' requested gene, queries Ensembl for ALL annotated transcripts and
+#' checks which sgRNAs from a manifest fall inside each transcript's
+#' promoter window. Reports per-transcript: number of sgRNAs matched,
+#' their TSS-relative positions, canonical flag, biotype, and transcript
+#' span; finishes with a recommended \code{transcript = "ENST..."}
+#' anchor for \code{\link{run_caspex}}.
+#'
+#' Use BEFORE picking the \code{transcript} argument for
+#' \code{\link{run_caspex}}, since alt-promoters of the same gene can
+#' sit hundreds of kb apart (e.g. FOXP2's HEK293 "active TSS1" is
+#' ~328 kb upstream of the canonical FOXP2-201 TSS, so a run anchored
+#' on the canonical transcript would not find Mackenzie's sgRNAs at all).
+#'
+#' @param gene HGNC symbol (e.g. \code{"FOXP2"}, \code{"ABCB1"}).
+#' @param manifest_path Path to the folder containing the sgRNA
+#'   manifest. Resolved relative to the current working directory if
+#'   not absolute. Default \code{"inputs"}.
+#' @param manifest Manifest filename inside \code{manifest_path}.
+#'   Default \code{"grnas.tsv"}.
+#' @param species Ensembl species token. Default
+#'   \code{"homo_sapiens"}.
+#' @param upstream,downstream bp window around each candidate TSS in
+#'   which to look for sgRNA matches. Deliberately wider than what
+#'   \code{run_caspex()} uses, so transcripts with TSSs slightly
+#'   offset from the guide tile still register matches.
+#'   Defaults 5000 / 1500.
+#' @param biotype_filter Character vector of Ensembl biotypes to keep.
+#'   Default \code{"protein_coding"}. Set to NULL or \code{character(0)}
+#'   to scan every biotype (includes \code{nonsense_mediated_decay},
+#'   \code{retained_intron}, \code{processed_transcript}, etc.) —
+#'   useful when your TF binds an alt-promoter Ensembl tags as
+#'   non-coding.
+#' @param verbose Print the per-transcript trace + recommendation
+#'   table to the console (default TRUE). Set FALSE to suppress.
+#' @return Invisibly, a data.frame with one row per transcript:
+#'   columns \code{transcript}, \code{biotype}, \code{is_canonical},
+#'   \code{tss}, \code{n_matched}, plus one column per sgRNA region
+#'   holding its TSS-relative bp position (NA = no match). Sorted by
+#'   \code{n_matched} descending.
+#' @examples
+#' \dontrun{
+#' # Use the bundled FOXP2 example data
+#' inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
+#'                           package = "GLproxScape")
+#' df <- check_transcripts(gene = "FOXP2", manifest_path = inputs_dir)
+#' head(df, 5)
+#' }
+#' @export
+check_transcripts <- function(gene,
+                              manifest_path  = "inputs",
+                              manifest       = "grnas.tsv",
+                              species        = "homo_sapiens",
+                              upstream       = 5000,
+                              downstream     = 1500,
+                              biotype_filter = "protein_coding",
+                              verbose        = TRUE) {
+  inputs <- load_caspex_inputs(manifest_path, manifest = manifest)
+  grnas  <- inputs$grnas
+  if (verbose) {
+    cat("=== sgRNA manifest ===\n")
+    for (i in seq_along(grnas))
+      cat(sprintf("  %s : %s\n", names(grnas)[i], grnas[[i]]))
+    cat(sprintf("\n=== Looking up %s in Ensembl (%s) ===\n", gene, species))
+  }
+  js <- ensembl_get(paste0("/lookup/symbol/", species, "/", gene),
+                    params = list(expand = 1,
+                                  `content-type` = "application/json"))
+  if (is.null(js))
+    stop("Gene '", gene, "' not found in Ensembl (", species, ")")
+  tx_list <- js$Transcript
+  if (is.null(tx_list) || length(tx_list) == 0)
+    stop("No transcripts returned for ", gene)
+
+  if (verbose)
+    cat(sprintf("Gene span: chr%s:%d-%d, strand=%s, %d transcripts\n",
+                js$seq_region_name, js$start, js$end,
+                if (js$strand == 1) "+" else "-", length(tx_list)))
+
+  if (length(biotype_filter) > 0) {
+    bt   <- vapply(tx_list, function(tx) tx$biotype %||% "", character(1))
+    keep <- bt %in% biotype_filter
+    if (verbose)
+      cat(sprintf("Filtering by biotype %s: %d / %d transcripts kept\n",
+                  paste(biotype_filter, collapse = ","),
+                  sum(keep), length(tx_list)))
+    tx_list <- tx_list[keep]
+  }
+
+  make_gene_info <- function(tx, js)
+    list(name = js$display_name, chr = js$seq_region_name,
+         strand = tx$strand %||% js$strand,
+         tss = if ((tx$strand %||% js$strand) == 1) tx$start else tx$end,
+         start = tx$start, end = tx$end, species = species,
+         transcript_id = tx$id)
+
+  if (verbose)
+    cat(sprintf("\n=== Testing %d transcript(s) with window upstream=%d / downstream=%d bp ===\n\n",
+                length(tx_list), upstream, downstream))
+
+  results <- vector("list", length(tx_list))
+  for (i in seq_along(tx_list)) {
+    tx <- tx_list[[i]]
+    gi <- make_gene_info(tx, js)
+    is_canon <- isTRUE(tx$is_canonical == 1)
+    bio <- tx$biotype %||% NA_character_
+    if (verbose)
+      cat(sprintf("[%d/%d] %s%s  biotype=%s  span=%d-%d (%d bp)  TSS=%d\n",
+                  i, length(tx_list), tx$id,
+                  if (is_canon) "  [canonical]" else "",
+                  bio, tx$start, tx$end, tx$end - tx$start + 1, gi$tss))
+    prom <- tryCatch(suppressMessages(fetch_promoter_seq(gi, upstream,
+                                                          downstream,
+                                                          species = species)),
+                     error = function(e) NULL)
+    if (is.null(prom)) {
+      results[[i]] <- list(tx = tx$id, biotype = bio, is_canon = is_canon,
+                           tss = gi$tss, n_matched = NA_integer_,
+                           positions = setNames(rep(NA_real_, length(grnas)),
+                                                 names(grnas)))
+      next
+    }
+    positions <- setNames(rep(NA_real_, length(grnas)), names(grnas))
+    strands   <- setNames(rep(NA_character_, length(grnas)), names(grnas))
+    for (r in names(grnas)) {
+      res <- match_grna(grnas[[r]], prom)
+      if (res$n_hits > 0) {
+        positions[[r]] <- res$positions[1]
+        strands[[r]]   <- res$strands[1]
+      }
+    }
+    n_matched <- sum(!is.na(positions))
+    if (verbose) {
+      for (r in names(grnas)) {
+        if (!is.na(positions[[r]]))
+          cat(sprintf("    %-3s : %+d bp (%s strand)\n",
+                      r, as.integer(positions[[r]]), strands[[r]]))
+        else
+          cat(sprintf("    %-3s : no match\n", r))
+      }
+      cat(sprintf("    -> %d / %d sgRNAs matched\n\n",
+                  n_matched, length(grnas)))
+    }
+    results[[i]] <- list(tx = tx$id, biotype = bio, is_canon = is_canon,
+                         tss = gi$tss, n_matched = n_matched,
+                         positions = positions)
+  }
+  ord <- order(vapply(results, function(r) r$n_matched %||% -1L, integer(1)),
+               decreasing = TRUE, na.last = TRUE)
+  if (verbose) {
+    cat("=== Summary (sorted by sgRNAs matched, DESC) ===\n")
+    hdr <- sprintf("%-18s  %-22s  %-10s  %10s  %s",
+                   "transcript", "biotype", "canonical", "TSS",
+                   paste(sprintf("%6s", names(grnas)), collapse = "  "))
+    cat(hdr, "\n"); cat(strrep("-", nchar(hdr)), "\n")
+    for (i in ord) {
+      r <- results[[i]]
+      pos_str <- vapply(names(grnas), function(rg) {
+        p <- r$positions[[rg]]
+        if (is.na(p)) "    -" else sprintf("%+6d", as.integer(p))
+      }, character(1))
+      cat(sprintf("%-18s  %-22s  %-10s  %10d  %s\n",
+                  r$tx, r$biotype %||% "-",
+                  if (isTRUE(r$is_canon)) "yes" else "no",
+                  r$tss, paste(pos_str, collapse = "  ")))
+    }
+    best <- which.max(vapply(results, function(r) r$n_matched %||% -1L,
+                              integer(1)))
+    cat("\n=== Recommendation ===\n")
+    cat(sprintf("Best transcript: %s  (%d / %d sgRNAs matched)\n",
+                results[[best]]$tx, results[[best]]$n_matched, length(grnas)))
+    cat(sprintf("Use in run_caspex():  transcript = \"%s\"\n",
+                results[[best]]$tx))
+  }
+  rows <- lapply(results, function(r) {
+    base <- data.frame(transcript = r$tx,
+                       biotype = r$biotype %||% NA_character_,
+                       is_canonical = isTRUE(r$is_canon),
+                       tss = r$tss,
+                       n_matched = r$n_matched %||% NA_integer_,
+                       stringsAsFactors = FALSE)
+    for (rg in names(r$positions)) base[[rg]] <- r$positions[[rg]]
+    base
+  })
+  invisible(do.call(rbind, rows[ord]))
+}
+
 # (Previously a script-style "CasPEX loaded; usage:" message printed at the
 # end of source(). In package context, top-level message() calls are
 # package-load side effects that R CMD check flags. Removed; usage lives
