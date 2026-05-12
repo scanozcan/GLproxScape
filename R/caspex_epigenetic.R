@@ -1351,60 +1351,110 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'      (compute_chipatlas_overlap).
 #'   6. Generate a per-factor PDF deck and write zones / spatial CSVs.
 #'
-#' @param result               output of run_caspex().
-#' @param epigenetic_factors   character vector of HGNC symbols (e.g. read
-#'                             from EpiDatabase.txt).
-#' @param zone_frac            β / max(β) threshold for zone detection
-#'                             (default 0.3; lower than TF path's 0.5 to
-#'                             merge near-peak β values into broader
-#'                             domains under the same labelling kernel).
-#' @param kernel_sigma         labelling-radius σ in bp; defaults to
-#'                             result$kernel_sigma (typically 300).
-#' @param weight_mode          region-weight mode; defaults to
-#'                             result$weight_mode.
-#' @param chipatlas            fetch + render ChIP-Atlas peaks (default TRUE).
-#' @param min_n_regions        passed to run_spatial_model.
-#' @param subtract_tf_overlap  if TRUE, drop epigenetic factors that are
-#'                             also in result$motif_results (i.e. were
-#'                             motif-scanned in the TF deck) so the
-#'                             epigenetic deck does not duplicate them.
-#'                             Default FALSE — render both decks for dual-
-#'                             class proteins (GATA, FOX, KLF, KRAB-ZNFs)
-#'                             so the reader can compare bubble vs.
-#'                             zone framings.
-#' @param detail_top_n         max number of factor pages in the deck
-#'                             (default 50; ranked by max peak β).
-#' @param out_dir              output directory; created if absent.
+#' @section Inputs:
+#' @param result Output of \code{\link{run_caspex}} on the same locus.
+#'   Reused: \code{long_data}, \code{pos_map}, \code{gene_info},
+#'   \code{promoter_info}, \code{kernel_sigma}, \code{weight_mode}.
+#' @param epigenetic_factors Character vector of HGNC symbols for the
+#'   factors to model (e.g. read from \code{EpiGenes_main.csv}). The
+#'   intersection with \code{result$long_data$protein} is what actually
+#'   gets analysed; missing factors are reported but skipped.
+#' @param out_dir Output directory; created if absent.
 #'
-#' @return invisible list with components: spatial_df_epi, zones_df,
-#'   chipatlas_peaks, factors_present, factors_missing, kernel_sigma,
-#'   zone_frac, weight_mode.
-#' @param inner_zone_frac (see function body).
-#' @param centroid_frac (see function body).
-#' @param cov_floor (see function body).
-#' @param edge_guard_frac (see function body).
-#' @param edge_grna_weight_cap (see function body).
-#' @param max_grna_distance (see function body).
-#' @param chipatlas_threshold (see function body).
-#' @param chipatlas_max_experiments (see function body).
-#' @param special_interest_cap (see function body).
-#' @param chipatlas_quiet (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
-#' @param histone_marks (see function body).
-#' @param histone_cell_type (see function body).
-#' @param histone_max_experiments_matched (see function body).
-#' @param histone_max_experiments_all (see function body).
-#' @param epigenes_main_csv (see function body).
-#' @param complex_min_detected (see function body).
-#' @param complex_max_pages (see function body).
-#' @param plot_width (see function body).
-#' @param plot_height (see function body).
-#' @param save_plots (see function body).
-#' @param special_interest_gene (see function body).
-#' @param peak_signal_range (see function body).
-#' @param histone_marks_pdf (see function body).
-#' @param epigenetic_complexes_csv (see function body).
+#' @section Zone detection:
+#' @param zone_frac Outer-zone threshold for zone detection:
+#'   \eqn{\beta(x) > zone\_frac \cdot max(\beta)} defines the broad
+#'   chromatin-domain extent. Default 0.3 (lower than the TF path's
+#'   0.5 so near-peak beta values merge into a single broad domain).
+#' @param inner_zone_frac Inner-core threshold within each outer zone:
+#'   contiguous runs above \eqn{inner\_zone\_frac \cdot zone\_peak\_beta}
+#'   become darker inner bars marking the most concentrated binding.
+#'   Default 0.7.
+#' @param centroid_frac Threshold on the per-zone regional logFC that a
+#'   candidate centroid region must clear (relative to the zone's max
+#'   regional logFC). Default 0.7.
+#'
+#' @section Kernel + coverage (inherited from the TF run by default):
+#' @param kernel_sigma Labelling-radius sigma in bp. NULL = inherit from
+#'   \code{result$kernel_sigma} (typically 300).
+#' @param weight_mode Region-weight mode. NULL = inherit from
+#'   \code{result$weight_mode} (typically "z").
+#' @param cov_floor Coverage-denominator floor (see \code{\link{run_caspex}}).
+#'   Default 0.05.
+#' @param edge_guard_frac In-support beta mask (see \code{\link{run_caspex}}).
+#'   Default 0.25.
+#' @param edge_grna_weight_cap Optional boundary-gRNA weight-share cap
+#'   (see \code{\link{run_caspex}}). NULL disables (default).
+#' @param max_grna_distance Hard geometric cap on event-to-nearest-guide
+#'   distance (see \code{\link{run_caspex}}). NULL (default).
+#' @param upstream,downstream bp window around TSS. Defaults 2500 / 500.
+#'   Should match the TF run's window so coordinates line up.
+#'
+#' @section Factor selection + deck:
+#' @param min_n_regions Minimum regions a factor must be detected in to
+#'   enter the spatial model. Default 2.
+#' @param subtract_tf_overlap If TRUE, drop factors that were also in
+#'   \code{result$motif_results} (i.e. motif-scanned in the TF deck) so
+#'   the epigenetic deck doesn't duplicate them. Default FALSE - render
+#'   both decks for dual-class proteins (GATA, FOX, KLF, KRAB-ZNFs) so
+#'   the reader can compare bubble vs. zone framings.
+#' @param detail_top_n Max number of per-factor detail pages (default 50;
+#'   ranked by max peak beta).
+#' @param peak_signal_range Optional 2-vector \code{c(min, max)} for the
+#'   deck-wide colour-bar limits on the inner-core fill. NULL (default)
+#'   auto-computes from the union of all rendered factors' peak betas
+#'   so every page shares one colour scale. Override when stitching
+#'   multiple decks (e.g. shared range across hTERT + MYC).
+#'
+#' @section ChIP-Atlas:
+#' @param chipatlas Fetch and overlay ChIP-Atlas peaks per factor
+#'   (default TRUE). Cache shared with the TF run.
+#' @param chipatlas_threshold One of \code{"05"} (Q<1e-5, default),
+#'   \code{"10"}, or \code{"20"}.
+#' @param chipatlas_max_experiments Cap on SRX experiments per factor
+#'   (default 100).
+#' @param special_interest_gene Optional character vector of factor
+#'   symbols whose ChIP-Atlas scan bypasses the per-factor cap (same
+#'   semantics as in \code{\link{run_caspex}}).
+#' @param special_interest_cap Optional integer cap on the
+#'   special-interest SRX count. NULL = scan all SRX (default).
+#' @param chipatlas_quiet Suppress per-SRX download messages (default TRUE).
+#'
+#' @section Locus-level histone marks:
+#' @param histone_marks_pdf If TRUE (default), generate a single-page
+#'   \code{histone_marks.pdf} showing the chromatin-state landscape at
+#'   this locus (active vs. repressive ChIP-Atlas peaks).
+#' @param histone_marks Character vector of mark names to render.
+#'   Default \code{c("H3K4me3", "H3K27ac", "H3K4me1", "H3K36me3",
+#'   "H3K27me3", "H3K9me3")}.
+#' @param histone_cell_type Cell-type substring (case- and punctuation-
+#'   insensitive) used to filter the top section to matched SRXs.
+#'   Default \code{"HEK293T"}.
+#' @param histone_max_experiments_matched Cap on cell-type-matched SRX
+#'   per mark (default 50).
+#' @param histone_max_experiments_all Cap on all-cell-type SRX per
+#'   mark in the bottom section (default 50).
+#'
+#' @section Epigenetic-complex deck:
+#' @param epigenetic_complexes_csv Optional path to
+#'   \code{EpiGenes_complexes.csv}. When supplied together with
+#'   \code{epigenes_main_csv}, generates an \code{epigenetic_complexes.pdf}
+#'   with one page per complex showing all members' zone bars
+#'   side-by-side.
+#' @param epigenes_main_csv Optional path to \code{EpiGenes_main.csv}
+#'   (required if \code{epigenetic_complexes_csv} is set).
+#' @param complex_min_detected Minimum detected members for a complex
+#'   to get a page (default 2).
+#' @param complex_max_pages Cap on number of complex pages (default 50,
+#'   ranked by detected-member count).
+#'
+#' @section Output writing:
+#' @param save_plots Write PDFs to \code{out_dir} (default TRUE).
+#' @param plot_width,plot_height PDF dimensions in inches. Defaults 12 x 8.
+#'
+#' @return Invisibly, a list with: \code{spatial_df_epi}, \code{zones_df},
+#'   \code{chipatlas_peaks}, \code{factors_present}, \code{factors_missing},
+#'   \code{kernel_sigma}, \code{zone_frac}, \code{weight_mode}.
 #' @export
 run_caspex_epigenetic <- function(
     result,

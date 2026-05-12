@@ -3093,73 +3093,191 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
   all_tfs
 }
 
-#' Run the full CasPEX analysis pipeline
+#' Run the full GLproxScape analysis pipeline
 #'
-#' @param gene        HGNC gene symbol (character)
-#' @param grnas       Named character vector: names = region IDs matching data_files,
-#'                    values = protospacer sequences (17-23bp, PAM optional).
-#'                    Set to NA for regions without a matched gRNA sequence.
-#' @param data_files  Named character vector: names = region IDs, values = file paths
-#' @param out_dir     Output directory (created if missing)
-#' @param species     Ensembl species string (default "homo_sapiens")
-#' @param upstream    bp upstream of TSS to fetch/plot (default 2500)
-#' @param downstream  bp downstream of TSS to fetch/plot (default 500)
-#' @param pval_thresh p-value significance cutoff (default 0.05)
-#' @param min_regions Keep TFs detected in at least this many regions (default 2)
-#' @param top_n       Number of top TFs to show in spatial track (default 25)
-#' @param motif_tfs   Character vector of TF names to run JASPAR motif scan on.
-#'                    If NULL, uses top 10 TFs from spatial model.
-#' @param motif_thresh JASPAR PWM score threshold as fraction of max (default 0.80)
-#' @param tfs_only    Restrict spatial model to TFDatabase=="exist" (default TRUE)
-#'   β(x) = s(x) / max(C(x), cov_floor · max(C)) — i.e. divide the smoothed
-#'   enrichment signal by the labeling-opportunity map to recover occupancy
-#'   in gRNA-poor gaps. Each motif is evaluated independently, so every
-#'   candidate with local signal support is surfaced (no NNLS sparsity
-#'   pressure). Default FALSE; the default keeps the smoothed-s(x) NNLS
-#'   production path.
-#' @param cov_floor   Relative floor
-#'   on the denominator: the effective amplification is capped at about
-#'   1/cov_floor. Default 0.05 (≈ 20× cap). Lower values amplify distal
-#'   signals more aggressively and also amplify noise.
-#' @param save_plots  Save plots to out_dir as PDF (default TRUE)
-#' @param plot_width  PDF width in inches (default 12)
-#' @param plot_height PDF height in inches (default 8)
+#' End-to-end driver for spatial deconvolution of dCas9-APEX2 proximity
+#' proteomics. Takes a manifest of guide RNAs and per-region enrichment
+#' tables, anchors them to an Ensembl transcript's TSS, builds the
+#' Gaussian labelling kernel + coverage map, runs the spatial model and
+#' coverage-aware deconvolution against JASPAR PWMs, optionally overlays
+#' independent ChIP-Atlas peaks, and writes the result deck (motif-track
+#' PDF, deconvolution detail pages, CSVs) to \code{out_dir}.
+#'
+#' @section Inputs (required):
+#' @param gene HGNC gene symbol whose promoter window is analysed.
+#' @param grnas Named character vector of protospacer sequences (17-23 bp,
+#'   PAM optional). Names match the region IDs used by \code{data_files}.
+#'   Set an element to \code{NA} for regions without a sequence to match
+#'   (the region still contributes its logFC data but no cut-site tick).
+#' @param data_files Named character vector of per-region proteomics
+#'   table paths. Names align with \code{grnas}. Each file must carry
+#'   a \code{logFC} column and a p-value column.
+#' @param out_dir Output directory; created if absent. The deconvolution
+#'   PDF, motif-track PDF, gRNA-positions PDF, and predictions CSVs all
+#'   land here.
+#'
+#' @section Annotation universes:
+#' @param tf_universe Optional character vector of HGNC TF symbols (e.g.
+#'   read from \code{TFLibrary.txt}). When supplied, sets the \code{isTF}
+#'   flag on the loaded long_data and gates the spatial model when
+#'   \code{tfs_only = TRUE}. NULL falls back to a \code{TFDatabase}-style
+#'   column in the input files if present, else FALSE everywhere.
+#' @param epi_universe Optional character vector of epigenetic-factor
+#'   HGNC symbols (e.g. read from \code{EpiGenes_main.csv}). Sets
+#'   \code{isEpi} on loaded rows; used downstream by
+#'   \code{\link{run_caspex_epigenetic}} but does not affect the TF deck.
+#' @param tfs_only If TRUE (default) the spatial model is restricted to
+#'   rows with \code{isTF = TRUE}; FALSE includes every protein.
+#'
+#' @section Promoter window:
+#' @param species Ensembl species token (default \code{"homo_sapiens"}).
+#' @param transcript TSS-anchor selection. \code{"canonical"} (default)
+#'   uses the Ensembl canonical transcript - deterministic across REST
+#'   calls. \code{"ENST..."} pins to a specific transcript ID (e.g.
+#'   Myers MYC P2: \code{"ENST00000377970"}). \code{NA} falls back to
+#'   the legacy gene-level union boundary (subject to Ensembl annotation
+#'   drift; not recommended).
+#' @param upstream,downstream bp window around the TSS to fetch and
+#'   model. Defaults 2500 / 500 - widen \code{downstream} when guides
+#'   tile downstream of the canonical TSS (Mackenzie FOXP2 uses 200 / 2000).
+#'
+#' @section Spatial model + selection:
+#' @param pval_thresh Per-region p-value floor for a TF to count as
+#'   significant in that region (default 0.05).
+#' @param min_regions Minimum number of regions in which a TF must pass
+#'   the p-value gate (default 2).
+#' @param min_lfc Optional logFC floor applied before weighting in the
+#'   spatial model. Default 0 (no floor). Set positive to ignore mildly
+#'   negative logFC entirely rather than relying on \code{compute_region_weight}'s
+#'   positive-weight clip.
+#' @param top_n Number of top TFs to render on the spatial track plot
+#'   (default 25).
+#' @param motif_tfs Optional character vector of TF symbols to run the
+#'   JASPAR motif scan on. NULL = the engine's own selection
+#'   (\code{select_motif_tfs}: common + shared-focal + region-specific
+#'   buckets, total ~44 TFs). Override if you want a custom set.
+#' @param n_common,n_shared,n_specific Per-bucket caps for
+#'   \code{select_motif_tfs}: top-N common across regions, top-N shared-
+#'   focal (significant in >=2 regions), top-N per region-specific list.
+#'   Defaults 20 / 20 / 20.
+#'
+#' @section Motif scan:
+#' @param motif_thresh JASPAR PWM log-odds threshold as a fraction of the
+#'   matrix max score (default 0.80). 0.75 is a common relaxation for
+#'   long high-IC matrices; lower values surface more peripheral hits.
+#' @param motif_scan_pool One of \code{"selected"} (default) or
+#'   \code{"spatial_all"}. \code{"selected"} scans only the 44-TF
+#'   select_motif_tfs union, matching the legacy pipeline. \code{"spatial_all"}
+#'   additionally scans every TF in the spatial model that didn't make
+#'   that cut; the extra results live in \code{result$motif_results_extra}
+#'   and are consumed by the deconvolution deck when
+#'   \code{deconv_min_motif_hits > 0}.
+#' @param motif_score_weight How the PWM log-odds score per motif feeds
+#'   into bubble amplitude: \code{"none"} (default; binary above-threshold
+#'   filter only), \code{"linear"} (amplitude scaled by score_frac in
+#'   [0,1]), \code{"log"} (amplitude scaled by 2^(score_frac - 1) -
+#'   compresses the dynamic range). See the supplemental methods for the
+#'   exact NNLS / zone-path math.
+#'
+#' @section Deconvolution kernel + filters:
+#' @param kernel_sigma Gaussian labelling kernel width in bp (default 300).
+#'   Roughly matches APEX2's biotinylation radius along linear DNA.
+#' @param min_weight_frac Minimum fraction of the local peak amplitude
+#'   below which events are pruned (default 0.15).
+#' @param min_peak_dist Minimum bp separation between local maxima in
+#'   the no-motif fallback peak detector (default 150).
+#' @param merge_dist Closely-spaced motif hits within this many bp are
+#'   merged into a single amplitude-weighted cluster (default 100 ~ sigma/3).
+#' @param coverage_correct Must be TRUE (default). The smoothed-NNLS path
+#'   (\code{FALSE}) was retired in v0.1.0; the coverage-aware zone path is
+#'   the only supported deconvolution. Kept as a parameter to error
+#'   loudly when legacy scripts pass FALSE.
+#' @param cov_floor Relative floor on the labelling-coverage denominator:
+#'   \eqn{\beta(x) = s(x) / \max(C(x), cov\_floor \cdot \max(C))}.
+#'   Effective amplification is capped near \code{1 / cov_floor}.
+#'   Default 0.05 (~20x cap). Lower amplifies distal signals more
+#'   aggressively and also amplifies noise.
+#' @param edge_guard_frac Fraction-of-max-coverage floor that defines
+#'   the in-support region for beta. Set well above \code{cov_floor} so
+#'   beta is not evaluated in the low-denominator transition band at the
+#'   tile edges. Default 0.25 (5x default cov_floor).
+#' @param zone_peak_frac Per-zone beta floor: motifs whose local beta is
+#'   below \code{zone_peak_frac * zone_peak_beta} are dropped. 0 disables.
+#'   Default 0.50.
+#' @param max_events_per_tf Top-N cap on events per TF after merging
+#'   (default 30; Inf disables).
+#' @param merge_position How the position of a merged cluster is reported.
+#'   \code{"argmax"} (default) snaps to the strongest motif's bp coord.
+#'   \code{"centroid"} uses the amplitude-weighted mean - can land
+#'   between motifs.
+#' @param max_grna_distance Hard geometric cap in bp on how far a called
+#'   event can sit from the nearest gRNA. NULL (default) resolves to
+#'   \code{kernel_sigma}. Inf disables. Auto-scales with the kernel
+#'   width; complements \code{edge_guard_frac}.
+#' @param edge_grna_weight_cap Optional fraction in (0,1]; drops events
+#'   where either boundary gRNA contributes more than this fraction of
+#'   the local Gaussian weight sum. Suppresses "edge-bleed" events
+#'   inflated by a single boundary guide's kernel tail. NULL (default)
+#'   disables; 0.5 is a typical setting when needed.
+#'
+#' @section Bootstrap diagnostic:
+#' @param position_stability \code{"none"} (default) or
+#'   \code{"wild_bootstrap"}. When enabled, runs a Rademacher Wild
+#'   bootstrap on the residuals of a forward-model NNLS fit at the called
+#'   event positions and adds four columns to \code{binding_events}
+#'   (pos_stab_low/high/median, bootstrap_survival_frac). NxSlower; only
+#'   currently used as a benchmarking diagnostic.
+#' @param n_bootstrap Wild bootstrap draw count when
+#'   \code{position_stability = "wild_bootstrap"} (default 200L).
+#'
+#' @section Region-weight mode:
+#' @param weight_mode Region-weight transform applied to the per-region
+#'   enrichment when building the smoothed signal s(x). \code{"z"}
+#'   (default) = signed z-score derived from p-value. Alternatives:
+#'   \code{"mod_t"} (moderated t from a limma-style \code{t} column),
+#'   \code{"lfc_pos"}, \code{"lfc_signed"}, \code{"lfc_x_negp"}.
+#' @param signal_weight Backward-compat alias for \code{weight_mode}.
+#'   If non-NULL, overrides \code{weight_mode} for signal building.
+#'
+#' @section ChIP-Atlas overlay:
+#' @param chipatlas FALSE (default; off so runs stay network-free) or
+#'   TRUE to fetch and render public ChIP-seq peaks for every
+#'   motif-scanned TF.
+#' @param chipatlas_threshold One of \code{"05"} (Q<1e-5, default),
+#'   \code{"10"}, or \code{"20"}.
+#' @param chipatlas_max_experiments Cap on SRX experiments per TF
+#'   (default 100, newest first).
+#' @param special_interest_gene Optional character vector of TF symbols
+#'   that bypass the per-TF SRX cap and have ALL (or
+#'   \code{special_interest_cap}) of their available SRX scanned.
+#'   Useful for biologically focal regulators where rare cell-type-
+#'   specific peaks live in older SRX entries the cap excludes.
+#' @param special_interest_cap Optional integer cap on the special-
+#'   interest SRX count per TF. NULL (default) = scan all SRX.
+#' @param chipatlas_quiet Suppress per-SRX download messages (default TRUE).
+#'
+#' @section Detail deck:
+#' @param detail_top_n How many top TFs to render on the per-TF
+#'   deconvolution detail PDF (default 12).
+#' @param deconv_min_motif_hits Minimum number of JASPAR hits in the
+#'   promoter window required for a TF to appear on the detail PDF.
+#'   Default 0 (no filter); set > 0 to focus the deck on TFs with motif-
+#'   grounded calls and exclude motif-less peak-detection fallbacks.
+#' @param deconv_min_max_lfc Optional logFC floor on top of the motif-hit
+#'   filter: a TF is kept iff its max per-region logFC across matched
+#'   regions is >= this value. Default 0 (no filter). Useful when input
+#'   p-values are unreliable; the two filters compose AND-style.
+#'
+#' @section Output writing:
+#' @param save_plots Write the PDF deck to \code{out_dir} (default TRUE).
+#'   Set FALSE for a fast headless run that only computes the result list.
+#' @param plot_width,plot_height PDF dimensions in inches. Defaults 10 x 8.
 #'
 #' @return Invisibly, a list with: spatial_df, long_data, pos_map,
-#'         gene_info, promoter_info, motif_results, binding_events, plots
-#' @param epi_universe (see function body).
-#' @param n_common (see function body).
-#' @param n_shared (see function body).
-#' @param n_specific (see function body).
-#' @param min_weight_frac (see function body).
-#' @param min_peak_dist (see function body).
-#' @param merge_dist (see function body).
-#' @param tf_universe (see function body).
-#' @param transcript (see function body).
-#' @param min_lfc (see function body).
-#' @param motif_score_weight (see function body).
-#' @param kernel_sigma (see function body).
-#' @param coverage_correct (see function body).
-#' @param edge_guard_frac (see function body).
-#' @param zone_peak_frac (see function body).
-#' @param max_events_per_tf (see function body).
-#' @param merge_position (see function body).
-#' @param max_grna_distance (see function body).
-#' @param edge_grna_weight_cap (see function body).
-#' @param position_stability (see function body).
-#' @param n_bootstrap (see function body).
-#' @param weight_mode (see function body).
-#' @param signal_weight (see function body).
-#' @param chipatlas (see function body).
-#' @param chipatlas_threshold (see function body).
-#' @param chipatlas_max_experiments (see function body).
-#' @param special_interest_gene (see function body).
-#' @param special_interest_cap (see function body).
-#' @param chipatlas_quiet (see function body).
-#' @param detail_top_n (see function body).
-#' @param deconv_min_motif_hits (see function body).
-#' @param deconv_min_max_lfc (see function body).
-#' @param motif_scan_pool (see function body).
+#'   gene_info, promoter_info, motif_results, motif_results_extra,
+#'   binding_events, plots, plus run metadata (weight_mode,
+#'   coverage_correct, cov_floor, edge_guard_frac, kernel_sigma,
+#'   upstream, downstream, chipatlas_peaks, chipatlas_threshold).
 #' @export
 run_caspex <- function(
     gene,
