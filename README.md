@@ -19,9 +19,8 @@ sequence-specific motif, and an optional ChIP-Atlas overlay validates
 predictions against independent ChIP-seq peaks.
 
 The package is the analysis backbone behind the GLproxScape preprint
-(Ozcan *et al.*, in preparation) and ships bundled reanalyses of the
-Myers 2018 hTERT/MYC dataset (5 sgRNAs each) and the Mackenzie 2026
-FOXP2 dataset (3 sgRNAs).
+(Ozcan *et al.*, in preparation) and ships a bundled reanalysis of the
+Mackenzie 2026 FOXP2 dataset (3 sgRNAs) as an end-to-end example.
 
 ## Install
 
@@ -395,10 +394,8 @@ Under `inst/extdata/examples/`, resolvable at runtime via `system.file()`:
 | Folder                | Locus  | Guides | Reference                       |
 |-----------------------|--------|--------|---------------------------------|
 | `foxp2_mackenzie/`    | FOXP2  | 3      | Mackenzie *et al.*, 2026        |
-| `tert_myers/`         | hTERT  | 5      | Myers *et al.*, 2018            |
-| `myc_myers/`          | MYC    | 5      | Myers *et al.*, 2018            |
 
-Each folder is a self-contained input bundle: a `grnas.tsv` manifest
+The folder is a self-contained input bundle: a `grnas.tsv` manifest
 (region → protospacer + per-region file) plus per-region `Region*.txt`
 proteomics tables with `logFC` + `P.Value` columns.
 
@@ -457,11 +454,12 @@ mathematical framing for every step.
 
 ## Reproducibility
 
-Every analysis the paper reports — Mackenzie FOXP2, Myers hTERT and MYC
-— is reproducible from the bundled `inst/extdata/examples/` folders.
-The relevant `run_caspex()` parameter settings live in the FOXP2
-vignette and in each dataset's runner script under the paper's
-companion analysis folder.
+The Mackenzie FOXP2 analysis the paper reports is reproducible from
+the bundled `inst/extdata/examples/foxp2_mackenzie/` folder. The
+relevant `run_caspex()` parameter settings live in the FOXP2 vignette.
+Other paper analyses (Myers hTERT, Myers MYC) are reproducible from
+their respective input tables in the paper's companion analysis
+folder; only FOXP2 ships inside the package itself.
 
 The `transcript = "canonical"` default in `lookup_gene()` ensures
 TSS-relative coordinates are stable across Ensembl releases. For
