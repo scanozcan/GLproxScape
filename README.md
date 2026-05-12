@@ -330,8 +330,6 @@ this as a quick lookup; the same content lives (with longer prose) in
   peak detector.
 - `merge_dist` = `100` — motif hits within this many bp are merged
   into one cluster.
-- `coverage_correct` = `TRUE` — must be `TRUE`; `FALSE` (smoothed-NNLS)
-  was retired in v0.1.0 and errors loudly.
 - `cov_floor` = `0.05` — relative floor on the coverage denominator.
   Effective amplification cap = `1 / cov_floor` (~20×).
 - `edge_guard_frac` = `0.25` — fraction-of-max-coverage floor for the

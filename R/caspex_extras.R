@@ -62,7 +62,6 @@ plot_tf_one_pager <- function(result, tf_name) {
   p_top <- plot_binding_deconvolution(
     tf_name, ld, pos_map, motif_hits,
     weight_mode      = result$weight_mode      %||% "mod_t",
-    coverage_correct = TRUE,
     cov_floor        = result$cov_floor        %||% 0.05,
     kernel_sigma     = result$kernel_sigma     %||% 250
   ) + labs(title = NULL, subtitle = NULL)

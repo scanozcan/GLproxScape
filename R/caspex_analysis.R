@@ -1205,7 +1205,6 @@ find_local_maxima <- function(x, y, min_height = 0, min_dist = 150) {
 # remains in place under `position_stability` for back-compatibility but
 # is not rendered.
 
-
 #' Predict binding events with coverage-aware deconvolution
 #'
 #' Coverage-normalised counterpart to predict_binding_events(): operates
@@ -1836,13 +1835,7 @@ predict_binding_events_coverage_aware <- function(
 
 #' Batch: predict binding events for a TF list, using motif_results when present.
 #'
-#' @param coverage_correct  Must be TRUE (default). The smoothed-NNLS
-#'   production path). TRUE -> coverage-normalized per-motif scoring
-#'   β = s(x) / max(C(x), cov_floor · max(C)); see
-#'   `predict_binding_events_coverage_aware()`. TRUE surfaces more events
-#'   (no NNLS sparsity pressure, gap binders are rescued), at the cost of
-#'   amplifying noise if cov_floor is set too low. Events carry two extra
-#'   columns: `distance_to_nearest_grna` and `local_coverage`.
+
 #' @param cov_floor         Relative
 #'   floor on the denominator: amplification is capped at ~ 1/cov_floor ×
 #'   the max-coverage value. Default 0.05 (~20× amplification cap).
@@ -1873,8 +1866,7 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
                                         min_peak_dist   = 150,
                                         merge_dist      = 100,
                                         weight_mode     = "z",
-                                        coverage_correct = TRUE,
-                                        cov_floor        = 0.05,
+                                                                            cov_floor        = 0.05,
                                         edge_guard_frac  = 0.25,
                                         zone_peak_frac    = 0.50,
                                         max_events_per_tf = 30,
@@ -1894,10 +1886,6 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
                                         # See run_caspex() / predict_binding_events*()
                                         # docstrings for details.
                                         motif_score_weight = c("none", "linear", "log")) {
-  if (!isTRUE(coverage_correct))
-    stop("The smoothed-NNLS path (coverage_correct = FALSE) was retired ",
-         "in GLproxScape v0.1.0. Use coverage_correct = TRUE; the ",
-         "coverage-aware path is now the only supported deconvolution.")
   position_stability <- match.arg(position_stability)
   motif_score_weight <- match.arg(motif_score_weight)
   mode_tag <- "coverage-normalized per-motif (s/C)"
@@ -1985,7 +1973,7 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
 #' @param upstream (see function body).
 #' @param downstream (see function body).
 #' @param weight_mode (see function body).
-#' @param coverage_correct (see function body).
+
 #' @param cov_floor (see function body).
 #' @param edge_guard_frac (see function body).
 #' @param zone_peak_frac (see function body).
@@ -2005,7 +1993,6 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
                                         upstream        = 2500,
                                         downstream      = 500,
                                         weight_mode     = "z",
-                                        coverage_correct = TRUE,
                                         cov_floor       = 0.05,
                                         edge_guard_frac = 0.25,
                                         zone_peak_frac    = 0.50,
@@ -2043,9 +2030,6 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
                                                                 "linear",
                                                                 "log")) {
   position_stability <- match.arg(position_stability)
-  if (!isTRUE(coverage_correct))
-    stop("The smoothed-NNLS path (coverage_correct = FALSE) was retired ",
-         "in GLproxScape v0.1.0. Use coverage_correct = TRUE.")
   motif_score_weight <- match.arg(motif_score_weight)
   x_grid <- seq(-upstream, downstream, by = 5)
   sig    <- build_caspex_signal(tf_name, long_data, pos_map, x_grid,
@@ -3188,10 +3172,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   the no-motif fallback peak detector (default 150).
 #' @param merge_dist Closely-spaced motif hits within this many bp are
 #'   merged into a single amplitude-weighted cluster (default 100 ~ sigma/3).
-#' @param coverage_correct Must be TRUE (default). The smoothed-NNLS path
-#'   (\code{FALSE}) was retired in v0.1.0; the coverage-aware zone path is
-#'   the only supported deconvolution. Kept as a parameter to error
-#'   loudly when legacy scripts pass FALSE.
+
 #' @param cov_floor Relative floor on the labelling-coverage denominator:
 #'   \eqn{\beta(x) = s(x) / \max(C(x), cov\_floor \cdot \max(C))}.
 #'   Effective amplification is capped near \code{1 / cov_floor}.
@@ -3275,9 +3256,9 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'
 #' @return Invisibly, a list with: spatial_df, long_data, pos_map,
 #'   gene_info, promoter_info, motif_results, motif_results_extra,
-#'   binding_events, plots, plus run metadata (weight_mode,
-#'   coverage_correct, cov_floor, edge_guard_frac, kernel_sigma,
-#'   upstream, downstream, chipatlas_peaks, chipatlas_threshold).
+#'   binding_events, plots, plus run metadata (weight_mode, cov_floor,
+#'   edge_guard_frac, kernel_sigma, upstream, downstream,
+#'   chipatlas_peaks, chipatlas_threshold).
 #' @export
 run_caspex <- function(
     gene,
@@ -3344,10 +3325,6 @@ run_caspex <- function(
     min_weight_frac  = 0.15,
     min_peak_dist    = 150,
     merge_dist       = 100,
-    # Coverage-aware (opt-in) per-region NNLS. FALSE keeps the production
-    # smoothed-s(x) path; TRUE switches to the observation-model fit
-    # A[r,k] = G(m_k - pos_r; σ). See predict_binding_events_coverage_aware().
-    coverage_correct = TRUE,
     cov_floor        = 0.05,
     # `edge_guard_frac` (coverage-aware only): fraction-of-max-coverage floor
     # that defines the in-support region for β. Set well above `cov_floor`
@@ -3496,10 +3473,6 @@ run_caspex <- function(
   position_stability <- match.arg(position_stability)
   motif_score_weight <- match.arg(motif_score_weight)
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
-  if (!isTRUE(coverage_correct))
-    stop("The smoothed-NNLS path (coverage_correct = FALSE) was retired ",
-         "in GLproxScape v0.1.0. Use coverage_correct = TRUE; the ",
-         "coverage-aware path is now the only supported deconvolution.")
   message("=== CasPEX Binding Zone Predictor ===")
   message("Gene: ", gene, "  |  Regions: ", length(data_files))
 
@@ -3630,7 +3603,6 @@ run_caspex <- function(
     min_peak_dist   = min_peak_dist,
     merge_dist      = merge_dist,
     weight_mode     = signal_weight,
-    coverage_correct = coverage_correct,
     cov_floor        = cov_floor,
     edge_guard_frac  = edge_guard_frac,
     zone_peak_frac    = zone_peak_frac,
@@ -3948,7 +3920,6 @@ run_caspex <- function(
                                       upstream        = upstream,
                                       downstream      = downstream,
                                       weight_mode     = signal_weight,
-                                      coverage_correct = coverage_correct,
                                       cov_floor       = cov_floor,
                                       edge_guard_frac = edge_guard_frac,
                                       zone_peak_frac    = zone_peak_frac,
@@ -4086,7 +4057,6 @@ run_caspex <- function(
     # under the matching mode. Without these fields the extras would silently
     # run in default-mode NNLS even when `result` came from a coverage-aware
     # run, and would disagree with the events in `binding_events`.
-    coverage_correct = coverage_correct,
     cov_floor        = cov_floor,
     edge_guard_frac  = edge_guard_frac,
     kernel_sigma     = kernel_sigma,
@@ -4156,7 +4126,6 @@ inspect_tf <- function(result, tf_name) {
 rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
   run_motif_scan(tf_names, result$promoter_info, threshold_frac)
 }
-
 
 #' Audit which Ensembl transcript best matches your sgRNA layout
 #'
