@@ -14,7 +14,6 @@ plot_binding_deconvolution(
   upstream = 2500,
   downstream = 500,
   weight_mode = "z",
-  coverage_correct = TRUE,
   cov_floor = 0.05,
   edge_guard_frac = 0.25,
   zone_peak_frac = 0.5,
@@ -47,8 +46,6 @@ plot_binding_deconvolution(
 \item{downstream}{(see function body).}
 
 \item{weight_mode}{(see function body).}
-
-\item{coverage_correct}{(see function body).}
 
 \item{cov_floor}{(see function body).}
 

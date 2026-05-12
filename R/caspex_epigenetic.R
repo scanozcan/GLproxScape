@@ -1351,7 +1351,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'      (compute_chipatlas_overlap).
 #'   6. Generate a per-factor PDF deck and write zones / spatial CSVs.
 #'
-#' @section Inputs:
+#'
 #' @param result Output of \code{\link{run_caspex}} on the same locus.
 #'   Reused: \code{long_data}, \code{pos_map}, \code{gene_info},
 #'   \code{promoter_info}, \code{kernel_sigma}, \code{weight_mode}.
@@ -1361,7 +1361,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   gets analysed; missing factors are reported but skipped.
 #' @param out_dir Output directory; created if absent.
 #'
-#' @section Zone detection:
+#'
 #' @param zone_frac Outer-zone threshold for zone detection:
 #'   \eqn{\beta(x) > zone\_frac \cdot max(\beta)} defines the broad
 #'   chromatin-domain extent. Default 0.3 (lower than the TF path's
@@ -1374,7 +1374,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   candidate centroid region must clear (relative to the zone's max
 #'   regional logFC). Default 0.7.
 #'
-#' @section Kernel + coverage (inherited from the TF run by default):
+#'
 #' @param kernel_sigma Labelling-radius sigma in bp. NULL = inherit from
 #'   \code{result$kernel_sigma} (typically 300).
 #' @param weight_mode Region-weight mode. NULL = inherit from
@@ -1390,7 +1390,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #' @param upstream,downstream bp window around TSS. Defaults 2500 / 500.
 #'   Should match the TF run's window so coordinates line up.
 #'
-#' @section Factor selection + deck:
+#'
 #' @param min_n_regions Minimum regions a factor must be detected in to
 #'   enter the spatial model. Default 2.
 #' @param subtract_tf_overlap If TRUE, drop factors that were also in
@@ -1406,7 +1406,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   so every page shares one colour scale. Override when stitching
 #'   multiple decks (e.g. shared range across hTERT + MYC).
 #'
-#' @section ChIP-Atlas:
+#'
 #' @param chipatlas Fetch and overlay ChIP-Atlas peaks per factor
 #'   (default TRUE). Cache shared with the TF run.
 #' @param chipatlas_threshold One of \code{"05"} (Q<1e-5, default),
@@ -1420,7 +1420,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   special-interest SRX count. NULL = scan all SRX (default).
 #' @param chipatlas_quiet Suppress per-SRX download messages (default TRUE).
 #'
-#' @section Locus-level histone marks:
+#'
 #' @param histone_marks_pdf If TRUE (default), generate a single-page
 #'   \code{histone_marks.pdf} showing the chromatin-state landscape at
 #'   this locus (active vs. repressive ChIP-Atlas peaks).
@@ -1435,7 +1435,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #' @param histone_max_experiments_all Cap on all-cell-type SRX per
 #'   mark in the bottom section (default 50).
 #'
-#' @section Epigenetic-complex deck:
+#'
 #' @param epigenetic_complexes_csv Optional path to
 #'   \code{EpiGenes_complexes.csv}. When supplied together with
 #'   \code{epigenes_main_csv}, generates an \code{epigenetic_complexes.pdf}
@@ -1448,7 +1448,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #' @param complex_max_pages Cap on number of complex pages (default 50,
 #'   ranked by detected-member count).
 #'
-#' @section Output writing:
+#'
 #' @param save_plots Write PDFs to \code{out_dir} (default TRUE).
 #' @param plot_width,plot_height PDF dimensions in inches. Defaults 12 x 8.
 #'

@@ -3087,7 +3087,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' independent ChIP-Atlas peaks, and writes the result deck (motif-track
 #' PDF, deconvolution detail pages, CSVs) to \code{out_dir}.
 #'
-#' @section Inputs (required):
+#'
 #' @param gene HGNC gene symbol whose promoter window is analysed.
 #' @param grnas Named character vector of protospacer sequences (17-23 bp,
 #'   PAM optional). Names match the region IDs used by \code{data_files}.
@@ -3100,7 +3100,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   PDF, motif-track PDF, gRNA-positions PDF, and predictions CSVs all
 #'   land here.
 #'
-#' @section Annotation universes:
+#'
 #' @param tf_universe Optional character vector of HGNC TF symbols (e.g.
 #'   read from \code{TFLibrary.txt}). When supplied, sets the \code{isTF}
 #'   flag on the loaded long_data and gates the spatial model when
@@ -3113,7 +3113,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param tfs_only If TRUE (default) the spatial model is restricted to
 #'   rows with \code{isTF = TRUE}; FALSE includes every protein.
 #'
-#' @section Promoter window:
+#'
 #' @param species Ensembl species token (default \code{"homo_sapiens"}).
 #' @param transcript TSS-anchor selection. \code{"canonical"} (default)
 #'   uses the Ensembl canonical transcript - deterministic across REST
@@ -3125,7 +3125,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   model. Defaults 2500 / 500 - widen \code{downstream} when guides
 #'   tile downstream of the canonical TSS (Mackenzie FOXP2 uses 200 / 2000).
 #'
-#' @section Spatial model + selection:
+#'
 #' @param pval_thresh Per-region p-value floor for a TF to count as
 #'   significant in that region (default 0.05).
 #' @param min_regions Minimum number of regions in which a TF must pass
@@ -3145,7 +3145,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   focal (significant in >=2 regions), top-N per region-specific list.
 #'   Defaults 20 / 20 / 20.
 #'
-#' @section Motif scan:
+#'
 #' @param motif_thresh JASPAR PWM log-odds threshold as a fraction of the
 #'   matrix max score (default 0.80). 0.75 is a common relaxation for
 #'   long high-IC matrices; lower values surface more peripheral hits.
@@ -3163,7 +3163,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   compresses the dynamic range). See the supplemental methods for the
 #'   exact NNLS / zone-path math.
 #'
-#' @section Deconvolution kernel + filters:
+#'
 #' @param kernel_sigma Gaussian labelling kernel width in bp (default 300).
 #'   Roughly matches APEX2's biotinylation radius along linear DNA.
 #' @param min_weight_frac Minimum fraction of the local peak amplitude
@@ -3201,7 +3201,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   inflated by a single boundary guide's kernel tail. NULL (default)
 #'   disables; 0.5 is a typical setting when needed.
 #'
-#' @section Bootstrap diagnostic:
+#'
 #' @param position_stability \code{"none"} (default) or
 #'   \code{"wild_bootstrap"}. When enabled, runs a Rademacher Wild
 #'   bootstrap on the residuals of a forward-model NNLS fit at the called
@@ -3211,7 +3211,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param n_bootstrap Wild bootstrap draw count when
 #'   \code{position_stability = "wild_bootstrap"} (default 200L).
 #'
-#' @section Region-weight mode:
+#'
 #' @param weight_mode Region-weight transform applied to the per-region
 #'   enrichment when building the smoothed signal s(x). \code{"z"}
 #'   (default) = signed z-score derived from p-value. Alternatives:
@@ -3220,7 +3220,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param signal_weight Backward-compat alias for \code{weight_mode}.
 #'   If non-NULL, overrides \code{weight_mode} for signal building.
 #'
-#' @section ChIP-Atlas overlay:
+#'
 #' @param chipatlas FALSE (default; off so runs stay network-free) or
 #'   TRUE to fetch and render public ChIP-seq peaks for every
 #'   motif-scanned TF.
@@ -3237,7 +3237,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   interest SRX count per TF. NULL (default) = scan all SRX.
 #' @param chipatlas_quiet Suppress per-SRX download messages (default TRUE).
 #'
-#' @section Detail deck:
+#'
 #' @param detail_top_n How many top TFs to render on the per-TF
 #'   deconvolution detail PDF (default 100).
 #' @param deconv_min_motif_hits Minimum number of JASPAR hits in the
@@ -3249,7 +3249,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   regions is >= this value. Default 0 (no filter). Useful when input
 #'   p-values are unreliable; the two filters compose AND-style.
 #'
-#' @section Output writing:
+#'
 #' @param save_plots Write the PDF deck to \code{out_dir} (default TRUE).
 #'   Set FALSE for a fast headless run that only computes the result list.
 #' @param plot_width,plot_height PDF dimensions in inches. Defaults 10 x 8.
