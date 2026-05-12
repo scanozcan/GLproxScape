@@ -14,6 +14,7 @@
 ^_dev$
 ^scratch$
 ^\.DS_Store$
+^\.claude$
 ^vignettes/.*\.html$
 ^vignettes/.*_cache$
 ^vignettes/.*_files$

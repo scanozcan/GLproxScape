@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(R CMD check . --no-vignettes --no-manual)",
+      "Bash(Rscript -e \"library\\(roxygen2\\); x <- roxygen2::parse_package\\('.'\\); cat\\('Roxygen parsed OK\\\\n'\\)\")",
+      "Read(//Users/canozcan/Desktop/**)",
+      "Bash(R CMD check GLproxScape --no-vignettes --no-manual)",
+      "Bash(python3 *)",
+      "Bash(Rscript *)",
+      "Bash(R --version)"
+    ]
+  }
+}
