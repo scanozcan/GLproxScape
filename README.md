@@ -266,6 +266,130 @@ cite. If no transcript matches any sgRNAs, double-check the HGNC
 symbol, the species, and whether your sgRNA sequences are for the
 genome build Ensembl is currently serving.
 
+## `run_caspex()` parameter reference
+
+Full list of every argument, its default, and the allowed values. Use
+this as a quick lookup; the same content lives (with longer prose) in
+`?run_caspex`.
+
+#### Required inputs
+
+- `gene` — HGNC symbol (e.g. `"FOXP2"`).
+- `grnas` — named character vector of protospacer sequences (17-23 bp).
+- `data_files` — named character vector of per-region proteomics table paths.
+
+#### Annotation universes
+
+- `tf_universe` = `NULL` — character vector of HGNC TF symbols (e.g.
+  `readLines(system.file("extdata/databases/TFLibrary.txt",
+  package = "GLproxScape"))`). NULL falls back to a `TFDatabase`-style
+  column in the input files if present.
+- `epi_universe` = `NULL` — character vector of chromatin-factor HGNC
+  symbols (typically read from `EpiGenes_main.csv`).
+- `tfs_only` = `TRUE` — restrict the spatial model to rows with
+  `isTF = TRUE`. `FALSE` includes every protein.
+
+#### Promoter window
+
+- `species` = `"homo_sapiens"` — Ensembl species token.
+- `transcript` = `"canonical"` — `"canonical"` | `"ENST..."` | `NA`
+  (legacy gene-level union; not recommended).
+- `upstream` = `2500` — bp upstream of TSS.
+- `downstream` = `500` — bp downstream of TSS.
+
+#### Spatial model + TF selection
+
+- `pval_thresh` = `0.05` — per-region p-value gate.
+- `min_regions` = `2` — minimum regions for a TF to count.
+- `min_lfc` = `0` — optional logFC floor (set positive to ignore
+  mildly negative values).
+- `top_n` = `25` — number of TFs rendered on the spatial track plot.
+- `motif_tfs` = `NULL` — explicit TF list for the motif scan; NULL
+  uses the engine's `select_motif_tfs()` cut.
+- `n_common`, `n_shared`, `n_specific` = `20` each — per-bucket caps
+  on the motif-TF selection (top-N common across regions, top-N
+  shared-focal, top-N per-region-specific).
+
+#### Motif scan
+
+- `motif_thresh` = `0.80` — JASPAR PWM threshold as fraction of max
+  log-odds. Typical relaxation: `0.75`.
+- `motif_scan_pool` = `"selected"` — `"selected"` (44-TF default cut)
+  | `"spatial_all"` (also scan every spatial-model TF outside that cut;
+  results live in `result$motif_results_extra`).
+- `motif_score_weight` = `"none"` — `"none"` (binary threshold filter)
+  | `"linear"` (amplitude × score_frac) | `"log"` (amplitude ×
+  2^(score_frac - 1)).
+
+#### Deconvolution kernel + filters
+
+- `kernel_sigma` = `300` — Gaussian labelling-kernel width in bp.
+- `min_weight_frac` = `0.15` — events below this fraction of the
+  local peak amplitude are pruned.
+- `min_peak_dist` = `150` — bp separation in the no-motif fallback
+  peak detector.
+- `merge_dist` = `100` — motif hits within this many bp are merged
+  into one cluster.
+- `coverage_correct` = `TRUE` — must be `TRUE`; `FALSE` (smoothed-NNLS)
+  was retired in v0.1.0 and errors loudly.
+- `cov_floor` = `0.05` — relative floor on the coverage denominator.
+  Effective amplification cap = `1 / cov_floor` (~20×).
+- `edge_guard_frac` = `0.25` — fraction-of-max-coverage floor for the
+  in-support beta mask.
+- `zone_peak_frac` = `0.50` — per-zone beta floor for motif retention
+  (0 disables).
+- `max_events_per_tf` = `30` — top-N cap per TF after merging
+  (`Inf` disables).
+- `merge_position` = `"argmax"` — `"argmax"` (snap to strongest motif)
+  | `"centroid"` (amplitude-weighted mean).
+- `max_grna_distance` = `NULL` — hard geometric cap on event-to-gRNA
+  distance in bp; `NULL` resolves to `kernel_sigma` at runtime, `Inf`
+  disables.
+- `edge_grna_weight_cap` = `NULL` — drop events whose boundary-gRNA
+  weight share exceeds this fraction in (0, 1]; `NULL` disables.
+
+#### Region-weight mode
+
+- `weight_mode` = `"z"` — `"z"` (signed z from p-value, default) |
+  `"mod_t"` (limma moderated t) | `"lfc_pos"` | `"lfc_signed"` |
+  `"lfc_x_negp"`.
+- `signal_weight` = `NULL` — back-compat alias; if non-NULL overrides
+  `weight_mode` for the signal track only.
+
+#### Bootstrap diagnostic
+
+- `position_stability` = `"none"` — `"none"` | `"wild_bootstrap"`
+  (Rademacher Wild bootstrap on NNLS residuals, adds four columns to
+  `binding_events`).
+- `n_bootstrap` = `200L` — bootstrap draws.
+
+#### ChIP-Atlas overlay
+
+- `chipatlas` = `FALSE` — `TRUE` to fetch and render ChIP-seq peaks.
+- `chipatlas_threshold` = `"05"` — `"05"` (Q<1e-5) | `"10"` | `"20"`.
+- `chipatlas_max_experiments` = `100` — SRX cap per TF.
+- `special_interest_gene` = `NULL` — character vector of TFs that
+  bypass the SRX cap.
+- `special_interest_cap` = `NULL` — optional integer cap for
+  special-interest TFs; `NULL` = scan all SRX.
+- `chipatlas_quiet` = `TRUE` — suppress per-SRX download messages.
+
+#### Detail deck filters
+
+- `detail_top_n` = `12` — number of TFs on the per-TF deconvolution
+  detail PDF.
+- `deconv_min_motif_hits` = `0` — minimum JASPAR hits in window for
+  a TF to appear on the detail deck (0 disables).
+- `deconv_min_max_lfc` = `0` — minimum max per-region logFC for a
+  TF to appear on the detail deck (0 disables). Composes AND-style
+  with `deconv_min_motif_hits`.
+
+#### Output writing
+
+- `out_dir` = `"caspex_output"` — output directory (created if absent).
+- `save_plots` = `TRUE` — write the PDF deck.
+- `plot_width` = `10`, `plot_height` = `8` — PDF dimensions in inches.
+
 ## Bundled example datasets
 
 Under `inst/extdata/examples/`, resolvable at runtime via `system.file()`:
