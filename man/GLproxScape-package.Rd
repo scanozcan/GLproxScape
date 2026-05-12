@@ -35,12 +35,10 @@ factors.
 
 \section{Bundled example data}{
 
-Three reanalysis datasets are shipped under \code{inst/extdata/examples/}:
+One reanalysis dataset is shipped under \code{inst/extdata/examples/}:
 \itemize{
   \item \code{foxp2_mackenzie/} -- 3 sgRNAs at the FOXP2 promoter
     (Mackenzie et al. 2026)
-  \item \code{tert_myers/} -- 5 sgRNAs at the hTERT promoter (Myers et al. 2018)
-  \item \code{myc_myers/} -- 5 sgRNAs at the MYC P2 promoter (Myers et al. 2018)
 }
 Resolve a path with
 \code{system.file("extdata/examples/foxp2_mackenzie", package = "GLproxScape")}.

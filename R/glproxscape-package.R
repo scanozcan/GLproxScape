@@ -41,8 +41,7 @@
 #' @importFrom nnls nnls
 #' @importFrom scales comma percent
 #' @importFrom grDevices dev.list dev.off pdf
-#' @importFrom stats aggregate approx complete.cases cor embed median p.adjust
-#'   qnorm quantile reshape sd setNames var weighted.mean
+#' @importFrom stats aggregate approx complete.cases cor embed median p.adjust qnorm quantile reshape sd setNames var weighted.mean
 #' @importFrom tools R_user_dir
 #' @importFrom utils head read.csv read.delim tail write.csv
 "_PACKAGE"
