@@ -362,9 +362,6 @@ download_chipatlas_srx_bed <- function(srx, genome = "hg38", threshold = "05",
   df
 }
 
-# Module-level flag: has the one-shot debug trace been emitted yet?
-# Flips TRUE after the first SRX fetch of the first TF with >=1 experiment.
-.chipatlas_debug_done <- FALSE
 
 # ---- public API --------------------------------------------------------------
 
@@ -418,40 +415,6 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
   el  <- .chipatlas_experiment_list()
   ct_lookup <- setNames(el$cell_type, el$srx)
   cc_lookup <- setNames(el$cell_type_class, el$srx)
-
-  # One-shot debug trace: on the first SRX fetch of the first TF that HAS
-  # experiments, print the URL, the local download result, and the parsed
-  # row count. Makes silent 0-peak failures visible exactly once per session.
-  if (!isTRUE(.chipatlas_debug_done)) {
-    first_srx <- srx_ids[[1]]
-    url <- .chipatlas_srx_bed_url(first_srx, "hg38", threshold)
-    message("  [chipatlas debug] First fetch: ", tf, " / ", first_srx)
-    message("    URL: ", url)
-    fpath_dbg <- download_chipatlas_srx_bed(first_srx, threshold = threshold,
-                                            quiet = FALSE)
-    if (is.null(fpath_dbg)) {
-      message("    -> download FAILED (404, HTML stub, or empty)")
-    } else {
-      sz  <- file.size(fpath_dbg)
-      fl  <- tryCatch(readLines(fpath_dbg, n = 1, warn = FALSE),
-                      error = function(e) "")
-      df0 <- .read_chipatlas_srx_bed(fpath_dbg)
-      n   <- if (is.null(df0)) 0 else nrow(df0)
-      message("    -> downloaded ", format(sz, big.mark = ","), " bytes, ",
-              "first line: ", substr(fl[[1]], 1, 60))
-      message("    -> parsed ", format(n, big.mark = ","), " BED rows",
-              if (!is.null(df0) && nrow(df0) > 0)
-                paste0(" (first chr: ", df0$chr[1], " ", df0$start[1],
-                       "-", df0$end[1], ")")
-              else "")
-      # Also show the filter window so mismatched chromosome names are
-      # obvious (e.g. "chr13" vs "13").
-      message("    -> window: ", win$chr, ":",
-              format(win$g_start, big.mark = ","), "-",
-              format(win$g_end,   big.mark = ","))
-    }
-    .chipatlas_debug_done <<- TRUE
-  }
 
   pieces <- lapply(srx_ids, function(srx) {
     fpath <- download_chipatlas_srx_bed(srx, threshold = threshold, quiet = quiet)
