@@ -4122,6 +4122,10 @@ run_caspex <- function(
     # the windowed peak tables without re-hitting the network.
     chipatlas_peaks       = chipatlas_res,
     chipatlas_threshold   = if (isTRUE(chipatlas)) chipatlas_threshold else NULL,
+    # Output directory the run wrote to — attached so downstream callers
+    # can derive sibling paths like file.path(res$out_dir, "extras")
+    # without re-threading the original argument through their scripts.
+    out_dir         = out_dir,
     plots = list(grna = p_grna,
                  heat = p_heat,
                  gc   = p_gc)

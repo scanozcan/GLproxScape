@@ -20,7 +20,8 @@ predictions against independent ChIP-seq peaks.
 
 The package is the analysis backbone behind the GLproxScape preprint
 (Ozcan *et al.*, in preparation) and ships a bundled reanalysis of the
-Mackenzie 2026 FOXP2 dataset (3 sgRNAs) as an end-to-end example.
+Mackenzie *et al.* (2026) FOXP2 dataset (3 sgRNAs) as an end-to-end
+example.
 
 ## Install
 
@@ -30,19 +31,20 @@ remotes::install_github("scanozcan/GLproxScape", build_vignettes = TRUE)
 ```
 
 `build_vignettes = TRUE` builds the FOXP2 walkthrough during install so
-`vignette("foxp2-mackenzie", package = "GLproxScape")` works. Omit it
-for a faster install if you don't need the vignette HTML.
+`vignette("foxp2-mackenzie", package = "GLproxScape")` is available;
+drop it for a faster install if you don't need the vignette HTML.
 
-While the repo is private (paper review period), you'll need a GitHub
-Personal Access Token with `repo` scope in `~/.Renviron` as
-`GITHUB_PAT=ghp_...` before `remotes::install_github()` can authenticate.
+The repository is private during the paper review period. Until it
+goes public, `remotes::install_github()` needs a GitHub Personal
+Access Token with `repo` scope available as the `GITHUB_PAT`
+environment variable (e.g. in `~/.Renviron`).
 
 ## Quick start
 
 ```r
 library(GLproxScape)
 
-# Use the bundled FOXP2 (Mackenzie 2026) example data
+# Use the bundled FOXP2 example dataset (Mackenzie et al., 2026)
 inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
                           package = "GLproxScape")
 inputs <- load_caspex_inputs(inputs_dir)
@@ -58,46 +60,47 @@ res <- run_caspex(
   weight_mode      = "lfc_signed",
   pval_thresh      = 0.5,
   motif_thresh     = 0.75,
-  chipatlas        = FALSE                # set TRUE for ChIP-Atlas overlay
+  chipatlas        = FALSE,               # set TRUE for the ChIP-Atlas overlay (slow on a cold cache)
+  extras           = TRUE,                # diagnostic plot pack       -> <out_dir>/extras/
+  epigenetic       = TRUE                 # chromatin-factor zone deck -> <out_dir>/epigenetic/
 )
 
 # Inspect the top-N predicted binding events
 head(res$binding_events[order(-res$binding_events$weight), ], 10)
 ```
 
-The full deck (gRNA layout, per-region heatmap, motif-track PDF, and
-per-TF deconvolution detail pages) is written to `out_dir`. The
-returned list also exposes `res$spatial_df`, `res$motif_results`,
-`res$promoter_info`, etc. for programmatic post-processing.
+`chipatlas = FALSE` keeps this Quick start fast; flip to `TRUE` to
+add the orthogonal-validation track from public ChIP-seq peaks (one
+download per scanned TF on first run; cached locally thereafter).
 
-By default a single `run_caspex()` call produces the full deliverable
-set — the main TF deck, the diagnostic plot pack (`extras = TRUE`,
-written to `<out_dir>/extras/`), and the zone-based chromatin-factor
-deck (`epigenetic = TRUE`, written to `<out_dir>/epigenetic/`). The
-returned object exposes both as `res$extras_result` and
-`res$epigenetic_result` for programmatic inspection. Set either flag
-to `FALSE` to skip the corresponding phase.
+A single `run_caspex()` call writes the full deliverable set to
+`out_dir`: the main TF deck (gRNA layout, per-region heatmap,
+motif-track PDF, per-TF deconvolution detail pages, binding-events
+CSV), the diagnostic plot pack under `<out_dir>/extras/`, and the
+zone-based chromatin-factor deck under `<out_dir>/epigenetic/`. The
+returned object exposes the corresponding R objects as
+`res$spatial_df`, `res$motif_results`, `res$binding_events`,
+`res$extras_result`, and `res$epigenetic_result`. Set
+`extras = FALSE` or `epigenetic = FALSE` to skip either downstream
+phase; pass phase-specific parameters via
+`extras_args = list(...)` / `epigenetic_args = list(...)`.
 
-If you prefer to invoke the downstream phases separately (e.g. to tune
-phase-specific parameters interactively), the same two functions are
-exported and accept the `res` object directly:
+The two phase functions are also exported and accept the `res` object
+directly — useful for re-running just one phase while keeping the
+main TF deck cached in memory:
 
 ```r
 extras_out <- run_caspex_extras(res, out_dir = file.path(res$out_dir, "extras"))
-epi_out    <- run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epi"))
+epi_out    <- run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epigenetic"))
 ```
-
-`run_caspex_epigenetic()` auto-loads the bundled `EpiGenes_main.csv`
-(factor list) and `EpiGenes_complexes.csv` (complex membership) when
-their arguments are left at their `NULL` defaults. Override either by
-passing a character vector or a CSV path explicitly.
 
 ## How to use it on your own data
 
 GLproxScape expects each promoter-tiling experiment to live in a
 folder with one **manifest** file plus one **proteomics table** per
 gRNA region. Once the folder is laid out, the entire analysis is two
-function calls.
+function calls — `load_caspex_inputs()` to read the manifest, then
+`run_caspex()` for everything else.
 
 ### Folder layout
 
@@ -205,17 +208,16 @@ res <- run_caspex(
   out_dir          = "my_gene_analysis/caspex_output",
   weight_mode      = "z",
   motif_thresh     = 0.75,                  # JASPAR PWM threshold (frac of max)
-  chipatlas        = TRUE                   # set FALSE if you don't want the overlay
-  # extras = TRUE and epigenetic = TRUE are on by default; set to FALSE
-  # to skip the diagnostic pack or the chromatin-factor zone deck.
+  chipatlas        = TRUE,                  # set FALSE if you don't want the overlay
+  extras           = TRUE,                  # diagnostic plot pack       -> <out_dir>/extras/
+  epigenetic       = TRUE                   # chromatin-factor zone deck -> <out_dir>/epigenetic/
 )
 ```
 
-The diagnostic plot pack (`<out_dir>/extras/`) and the zone-based
-chromatin-factor deck (`<out_dir>/epigenetic/`) are produced
-automatically. Pass phase-specific parameters via
-`extras_args = list(...)` / `epigenetic_args = list(...)`, or set
-either flag to `FALSE` to skip the phase.
+`extras` and `epigenetic` are TRUE by default; set either to `FALSE`
+to skip the corresponding phase. Pass phase-specific parameters via
+`extras_args = list(...)` / `epigenetic_args = list(...)` without
+bloating the main signature.
 
 After this, `my_gene_analysis/caspex_output/` contains the
 binding-deconvolution PDF, the per-region heatmap, the gRNA-positions
@@ -253,19 +255,17 @@ Use in run_caspex():  transcript = "ENST00000XXXXXXX"
 Paste the recommended ENST into `run_caspex(transcript = ...)` and
 you're done.
 
-If the recommendation looks wrong, inspect the full data.frame
-returned by `check_transcripts()` and pick the ENST whose TSS
+The recommendation just picks the transcript with the most sgRNA
+matches — usually right, but not always. The canonical Ensembl
+transcript isn't necessarily the one your experiment targeted:
+FOXP2's HEK293 "active TSS1" (Mackenzie *et al.*, 2026), for
+example, sits on a non-canonical alt-promoter hundreds of kb
+upstream of the canonical FOXP2-201 TSS. When the recommendation
+looks off, inspect the full data.frame and pick the ENST whose TSS
 coordinate places your sgRNAs where the original publication says
-they sit. The canonical Ensembl transcript isn't always the one your
-experiment targeted — FOXP2's HEK293 "active TSS1" (Mackenzie 2026),
-for example, sits on a non-canonical alt-promoter hundreds of kb
-upstream of the canonical FOXP2-201 TSS. `check_transcripts()`
-surfaces this difference in its per-transcript table; the
-"recommendation" line at the bottom just reports the transcript with
-the most sgRNA matches, not necessarily the transcript you want to
-cite. If no transcript matches any sgRNAs, double-check the HGNC
-symbol, the species, and whether your sgRNA sequences are for the
-genome build Ensembl is currently serving.
+they sit. If no transcript matches any sgRNAs, double-check the
+HGNC symbol, the species, and whether your sgRNA sequences come
+from the genome build Ensembl is currently serving.
 
 ## `run_caspex()` parameter reference
 
@@ -385,24 +385,43 @@ this as a quick lookup; the same content lives (with longer prose) in
 #### Output writing
 
 - `out_dir` = `"caspex_output"` — output directory (created if absent).
+  Subfolders `extras/` and `epigenetic/` are created inside it when
+  the corresponding phase flags are TRUE (default).
 - `save_plots` = `TRUE` — write the PDF deck.
 - `plot_width` = `10`, `plot_height` = `8` — PDF dimensions in inches.
 
-## Bundled example datasets
+#### Optional downstream phases
 
-Under `inst/extdata/examples/`, resolvable at runtime via `system.file()`:
+- `extras` = `TRUE` — run `run_caspex_extras()` after the main
+  pipeline; writes the diagnostic plot pack to `<out_dir>/extras/`
+  and returns the result on `res$extras_result`.
+- `epigenetic` = `TRUE` — run `run_caspex_epigenetic()` after the
+  main pipeline; writes the zone-based chromatin-factor deck to
+  `<out_dir>/epigenetic/` and returns the result on
+  `res$epigenetic_result`.
+- `extras_args` = `list()` — named list of arguments forwarded to
+  `run_caspex_extras()`.
+- `epigenetic_args` = `list()` — named list of arguments forwarded
+  to `run_caspex_epigenetic()` (e.g. `histone_cell_type`,
+  `subtract_tf_overlap`, `complex_min_detected`).
 
-| Folder                | Locus  | Guides | Reference                       |
-|-----------------------|--------|--------|---------------------------------|
-| `foxp2_mackenzie/`    | FOXP2  | 3      | Mackenzie *et al.*, 2026        |
+## Bundled example data
 
+The package ships one end-to-end example dataset under
+`inst/extdata/examples/foxp2_mackenzie/` — a reanalysis of
+Mackenzie *et al.* (2026) at the FOXP2 promoter using 3 sgRNAs.
+Resolve the path at runtime with
+`system.file("extdata/examples/foxp2_mackenzie", package = "GLproxScape")`.
 The folder is a self-contained input bundle: a `grnas.tsv` manifest
 (region → protospacer + per-region file) plus per-region `Region*.txt`
-proteomics tables with `logFC` + `P.Value` columns.
+proteomics tables with `logFC` and `P.Value` columns.
 
-A fourth bundled resource under `inst/extdata/databases/` contains the
-TF and chromatin-factor universes (`TFLibrary.txt`, `EpiGenes_main.csv`,
-`EpiGenes_complexes.csv`) sourced from public TF / EpiFactors databases.
+The TF and chromatin-factor universes used by `run_caspex()` are
+bundled separately under `inst/extdata/databases/`
+(`TFLibrary.txt`, `EpiGenes_main.csv`, `EpiGenes_complexes.csv`),
+sourced from the Lambert *et al.* TF list and the EpiFactors database
+respectively. These are loaded automatically; override by passing
+`tf_universe` / `epi_universe` explicitly.
 
 ## Vignette
 
@@ -449,26 +468,38 @@ The pipeline runs in one call (`run_caspex`) that internally chains:
 8. **Plotting + CSV write-out** — multi-page deconvolution PDF, motif
    track, gRNA-positions plot, per-TF binding-events CSV, spatial
    predictions CSV.
+9. **Diagnostic extras** — `run_caspex_extras()` produces the
+   per-TF one-pagers, σ-sensitivity sweep, gRNA jackknife, TF-pair
+   co-occurrence triangle, and other diagnostic plots in
+   `<out_dir>/extras/`. Skipped when `extras = FALSE`.
+10. **Chromatin-factor zone deck** — `run_caspex_epigenetic()` runs
+    the zone-based path for readers / writers / erasers / remodellers
+    that lack a sequence-specific motif, plus the histone-marks
+    locus map and (when both EpiGenes CSVs are bundled or supplied) a
+    per-complex deck showing co-localising members. Output in
+    `<out_dir>/epigenetic/`. Skipped when `epigenetic = FALSE`.
 
 The supplemental methods in the accompanying paper give the precise
 mathematical framing for every step.
 
 ## Reproducibility
 
-The Mackenzie FOXP2 analysis the paper reports is reproducible from
-the bundled `inst/extdata/examples/foxp2_mackenzie/` folder. The
-relevant `run_caspex()` parameter settings live in the FOXP2 vignette.
-Other paper analyses (Myers hTERT, Myers MYC) are reproducible from
-their respective input tables in the paper's companion analysis
-folder; only FOXP2 ships inside the package itself.
+The Mackenzie FOXP2 analysis reported in the paper is reproducible
+end-to-end from the bundled `inst/extdata/examples/foxp2_mackenzie/`
+folder; the corresponding `run_caspex()` parameter settings live in
+the FOXP2 vignette. The other paper analyses (Myers *et al.* TERT
+and MYC, plus the in-house dataset) ship as a Zenodo companion
+deposit alongside the manuscript; only the FOXP2 example is bundled
+inside the package itself.
 
-The `transcript = "canonical"` default in `lookup_gene()` ensures
-TSS-relative coordinates are stable across Ensembl releases. For
-datasets that target alternative promoters (e.g. Mackenzie FOXP2 uses
-HEK293's "active TSS1", not the canonical FOXP2-201 TSS), the runner
-explicitly pins the right ENST ID (e.g. `ENST00000901759`); the package
-exposes `check_transcripts()` as a diagnostic helper to identify
-the correct anchor.
+The `transcript = "canonical"` default in `lookup_gene()` keeps
+TSS-relative coordinates stable across Ensembl releases. For
+datasets that target alternative promoters — e.g. Mackenzie FOXP2's
+HEK293 "active TSS1", which sits on a non-canonical alt-promoter
+rather than the canonical FOXP2-201 TSS — pin the right ENST ID
+explicitly (`transcript = "ENST00000901759"`); the diagnostic helper
+`check_transcripts()` surfaces the per-transcript sgRNA-match table
+when you're picking it.
 
 ## Citation
 

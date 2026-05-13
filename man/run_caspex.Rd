@@ -275,8 +275,10 @@ Default \code{list()}.}
 Invisibly, a list with: spatial_df, long_data, pos_map,
   gene_info, promoter_info, motif_results, motif_results_extra,
   binding_events, plots, plus run metadata (weight_mode, cov_floor,
-  edge_guard_frac, kernel_sigma, upstream, downstream,
-  chipatlas_peaks, chipatlas_threshold).
+  edge_guard_frac, kernel_sigma, upstream, downstream, out_dir,
+  chipatlas_peaks, chipatlas_threshold). When \code{extras = TRUE} or
+  \code{epigenetic = TRUE}, the corresponding phase result attaches as
+  \code{extras_result} or \code{epigenetic_result}.
 }
 \description{
 End-to-end driver for spatial deconvolution of dCas9-APEX2 proximity
