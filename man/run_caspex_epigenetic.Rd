@@ -6,7 +6,7 @@
 \usage{
 run_caspex_epigenetic(
   result,
-  epigenetic_factors,
+  epigenetic_factors = NULL,
   zone_frac = 0.3,
   inner_zone_frac = 0.7,
   centroid_frac = 0.7,
@@ -22,8 +22,8 @@ run_caspex_epigenetic(
   special_interest_gene = NULL,
   special_interest_cap = NULL,
   chipatlas_quiet = TRUE,
-  upstream = 2500,
-  downstream = 500,
+  upstream = NULL,
+  downstream = NULL,
   detail_top_n = 50,
   min_n_regions = 2,
   subtract_tf_overlap = FALSE,
@@ -49,9 +49,10 @@ Reused: \code{long_data}, \code{pos_map}, \code{gene_info},
 \code{promoter_info}, \code{kernel_sigma}, \code{weight_mode}.}
 
 \item{epigenetic_factors}{Character vector of HGNC symbols for the
-factors to model (e.g. read from \code{EpiGenes_main.csv}). The
-intersection with \code{result$long_data$protein} is what actually
-gets analysed; missing factors are reported but skipped.}
+factors to model. NULL (default) auto-loads the bundled
+\code{EpiGenes_main.csv} (HGNC_symbol column). The intersection with
+\code{result$long_data$protein} is what actually gets analysed;
+missing factors are reported but skipped.}
 
 \item{zone_frac}{Outer-zone threshold for zone detection:
 \eqn{\beta(x) > zone\_frac \cdot max(\beta)} defines the broad
@@ -103,8 +104,11 @@ special-interest SRX count. NULL = scan all SRX (default).}
 
 \item{chipatlas_quiet}{Suppress per-SRX download messages (default TRUE).}
 
-\item{upstream, downstream}{bp window around TSS. Defaults 2500 / 500.
-Should match the TF run's window so coordinates line up.}
+\item{upstream, downstream}{bp window around TSS. NULL (default)
+inherits from \code{result$upstream} / \code{result$downstream} so the
+epigenetic deck's coordinate frame automatically matches the TF run.
+Pass numeric overrides only if you want to widen / narrow the window
+relative to the original analysis.}
 
 \item{detail_top_n}{Max number of per-factor detail pages (default 50;
 ranked by max peak beta).}

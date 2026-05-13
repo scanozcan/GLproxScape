@@ -53,7 +53,11 @@ run_caspex(
   motif_scan_pool = c("selected", "spatial_all"),
   save_plots = TRUE,
   plot_width = 10,
-  plot_height = 8
+  plot_height = 8,
+  extras = TRUE,
+  epigenetic = TRUE,
+  extras_args = list(),
+  epigenetic_args = list()
 )
 }
 \arguments{
@@ -245,6 +249,27 @@ and are consumed by the deconvolution deck when
 Set FALSE for a fast headless run that only computes the result list.}
 
 \item{plot_width, plot_height}{PDF dimensions in inches. Defaults 10 x 8.}
+
+\item{extras}{If TRUE (default), run \code{\link{run_caspex_extras}}
+after the main pipeline completes, writing the diagnostic plot pack to
+\code{<out_dir>/extras/}. The returned object exposes the result as
+\code{res$extras_result}. Set FALSE to skip.}
+
+\item{epigenetic}{If TRUE (default), run
+\code{\link{run_caspex_epigenetic}} after the main pipeline completes,
+writing the zone-based chromatin-factor deck to
+\code{<out_dir>/epigenetic/}. The returned object exposes the result
+as \code{res$epigenetic_result}. Set FALSE to skip.}
+
+\item{extras_args}{Named list of additional arguments forwarded to
+\code{\link{run_caspex_extras}} when \code{extras = TRUE}. Useful for
+phase-specific tuning without bloating the \code{run_caspex} signature.
+Default \code{list()}.}
+
+\item{epigenetic_args}{Named list of additional arguments forwarded to
+\code{\link{run_caspex_epigenetic}} when \code{epigenetic = TRUE}
+(e.g. \code{histone_cell_type}, \code{subtract_tf_overlap},
+\code{complex_min_detected}). Default \code{list()}.}
 }
 \value{
 Invisibly, a list with: spatial_df, long_data, pos_map,
