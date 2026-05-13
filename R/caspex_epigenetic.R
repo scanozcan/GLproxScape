@@ -1479,8 +1479,8 @@ run_caspex_epigenetic <- function(
     special_interest_gene   = NULL,
     special_interest_cap    = NULL,
     chipatlas_quiet         = TRUE,
-    upstream         = 2500,
-    downstream       = 500,
+    upstream         = NULL,
+    downstream       = NULL,
     detail_top_n     = 50,
     min_n_regions    = 2,
     subtract_tf_overlap = FALSE,
@@ -1531,10 +1531,19 @@ run_caspex_epigenetic <- function(
 
   # Inherit defaults from the result object so the analysis is consistent
   # with the upstream TF run unless the caller explicitly overrides.
+  # Critical for `upstream` / `downstream`: the zone-detection x_grid is
+  # built as seq(-upstream, downstream, by = 5), and gRNAs landing outside
+  # that range produce empty signal on every factor.  Mackenzie FOXP2 sits
+  # at +980..+1194 — well past the legacy +500 default — so without this
+  # inheritance every factor returns 0 zones.
   if (is.null(kernel_sigma))
     kernel_sigma <- (result$kernel_sigma %||% 300)
   if (is.null(weight_mode))
     weight_mode  <- (result$weight_mode  %||% "z")
+  if (is.null(upstream))
+    upstream     <- (result$upstream     %||% 2500)
+  if (is.null(downstream))
+    downstream   <- (result$downstream   %||% 500)
   if (is.null(max_grna_distance))
     max_grna_distance <- kernel_sigma
 
