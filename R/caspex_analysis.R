@@ -3473,6 +3473,35 @@ run_caspex <- function(
   position_stability <- match.arg(position_stability)
   motif_score_weight <- match.arg(motif_score_weight)
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+  # ── Resolve TF / Epi universes from bundled databases when not user-supplied
+  # Keeps the simple `run_caspex(gene, grnas, data_files)` call self-contained:
+  # users who want to pin a custom universe still pass `tf_universe = ...` /
+  # `epi_universe = ...` and override the defaults.
+  if (is.null(tf_universe)) {
+    tf_path <- system.file("extdata/databases/TFLibrary.txt",
+                            package = "GLproxScape")
+    if (nzchar(tf_path) && file.exists(tf_path)) {
+      tf_universe <- toupper(trimws(readLines(tf_path)))
+      tf_universe <- tf_universe[nzchar(tf_universe)]
+      message("Using bundled TF universe (", length(tf_universe),
+              " entries) from ", basename(tf_path))
+    }
+  }
+  if (is.null(epi_universe)) {
+    epi_path <- system.file("extdata/databases/EpiGenes_main.csv",
+                             package = "GLproxScape")
+    if (nzchar(epi_path) && file.exists(epi_path)) {
+      epi_df <- utils::read.csv(epi_path, stringsAsFactors = FALSE)
+      sym_col <- if ("HGNC_symbol" %in% names(epi_df))
+        "HGNC_symbol" else names(epi_df)[1]
+      epi_universe <- toupper(trimws(epi_df[[sym_col]]))
+      epi_universe <- epi_universe[nzchar(epi_universe) & !is.na(epi_universe)]
+      message("Using bundled Epi universe (", length(epi_universe),
+              " entries) from ", basename(epi_path))
+    }
+  }
+
   message("=== CasPEX Binding Zone Predictor ===")
   message("Gene: ", gene, "  |  Regions: ", length(data_files))
 

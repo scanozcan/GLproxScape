@@ -1458,7 +1458,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #' @export
 run_caspex_epigenetic <- function(
     result,
-    epigenetic_factors,
+    epigenetic_factors = NULL,
     zone_frac        = 0.3,
     inner_zone_frac  = 0.7,
     centroid_frac    = 0.7,
@@ -1539,6 +1539,37 @@ run_caspex_epigenetic <- function(
     max_grna_distance <- kernel_sigma
 
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+  # ── Resolve epigenetic-factor universe + complexes paths from bundled
+  # databases when not user-supplied.  Keeps the simple
+  # `run_caspex_epigenetic(result, out_dir = ...)` call self-contained;
+  # users who want to pin a custom list still pass `epigenetic_factors = ...`
+  # (and/or the two complex csv paths) and override the defaults.
+  if (is.null(epigenetic_factors)) {
+    epi_path <- system.file("extdata/databases/EpiGenes_main.csv",
+                             package = "GLproxScape")
+    if (nzchar(epi_path) && file.exists(epi_path)) {
+      epi_df  <- utils::read.csv(epi_path, stringsAsFactors = FALSE)
+      sym_col <- if ("HGNC_symbol" %in% names(epi_df))
+        "HGNC_symbol" else names(epi_df)[1]
+      epigenetic_factors <- toupper(trimws(epi_df[[sym_col]]))
+      epigenetic_factors <- epigenetic_factors[
+        nzchar(epigenetic_factors) & !is.na(epigenetic_factors)]
+      message("Using bundled epigenetic-factor list (",
+              length(epigenetic_factors), " entries) from ",
+              basename(epi_path))
+    }
+  }
+  if (is.null(epigenes_main_csv)) {
+    p <- system.file("extdata/databases/EpiGenes_main.csv",
+                      package = "GLproxScape")
+    if (nzchar(p) && file.exists(p)) epigenes_main_csv <- p
+  }
+  if (is.null(epigenetic_complexes_csv)) {
+    p <- system.file("extdata/databases/EpiGenes_complexes.csv",
+                      package = "GLproxScape")
+    if (nzchar(p) && file.exists(p)) epigenetic_complexes_csv <- p
+  }
 
   message("=== CasPEX Epigenetic Zone Predictor ===")
   message("Gene: ", result$gene_info$name,

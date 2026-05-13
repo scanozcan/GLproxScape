@@ -81,12 +81,13 @@ For chromatin readers / writers / erasers that lack a sequence-specific
 motif (e.g. BRD4, KMT2A, SMARCA4), call the zone-based path:
 
 ```r
-extras_epi <- run_caspex_epigenetic(
-  res,
-  epigenetic_factors = readLines(system.file(
-    "extdata/databases/EpiGenes_main.csv", package = "GLproxScape"))
-)
+extras_epi <- run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epi"))
 ```
+
+`run_caspex_epigenetic()` auto-loads the bundled `EpiGenes_main.csv`
+(factor list) and `EpiGenes_complexes.csv` (complex membership) when
+their arguments are left at their `NULL` defaults. Override either by
+passing a character vector or a CSV path explicitly.
 
 ## How to use it on your own data
 
@@ -169,10 +170,11 @@ from the p-value as the default weight (`weight_mode = "z"`). If you
 do have moderated-t from limma, set `weight_mode = "mod_t"` in
 `run_caspex()` to use it.
 
-The TF vs. chromatin-factor classification is now controlled by the
-`tf_universe` and `epi_universe` arguments to `run_caspex()` (typically
-read from the bundled `TFLibrary.txt` and `EpiGenes_main.csv` —
-see the next section), not by a column inside the per-region tables.
+The TF vs. chromatin-factor classification is handled inside
+`run_caspex()` by auto-loading the bundled `TFLibrary.txt` and
+`EpiGenes_main.csv`. To pin a custom universe, pass a character vector
+to `tf_universe` or `epi_universe` and it overrides the bundled
+default. No TF column is needed inside the per-region tables.
 
 The protein column should hold HGNC symbols. Anything else (Ensembl
 IDs, UniProt accessions) won't intersect cleanly with the JASPAR
@@ -207,12 +209,7 @@ res <- run_caspex(
 run_caspex_extras(res, out_dir = file.path(res$out_dir, "extras"))
 
 # 4) Optional: chromatin-factor zone-based deck (BRD4, KMT2A, SMARCA4, ...)
-run_caspex_epigenetic(
-  res,
-  epigenetic_factors = readLines(system.file(
-    "extdata/databases/EpiGenes_main.csv", package = "GLproxScape")),
-  out_dir            = file.path(res$out_dir, "epigenetic")
-)
+run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epigenetic"))
 ```
 
 After this, `my_gene_analysis/caspex_output/` contains the
@@ -279,12 +276,11 @@ this as a quick lookup; the same content lives (with longer prose) in
 
 #### Annotation universes
 
-- `tf_universe` = `NULL` — character vector of HGNC TF symbols (e.g.
-  `readLines(system.file("extdata/databases/TFLibrary.txt",
-  package = "GLproxScape"))`). NULL falls back to a `TFDatabase`-style
-  column in the input files if present.
+- `tf_universe` = `NULL` — character vector of HGNC TF symbols. `NULL`
+  auto-loads the bundled `inst/extdata/databases/TFLibrary.txt`.
 - `epi_universe` = `NULL` — character vector of chromatin-factor HGNC
-  symbols (typically read from `EpiGenes_main.csv`).
+  symbols. `NULL` auto-loads the bundled
+  `inst/extdata/databases/EpiGenes_main.csv` (`HGNC_symbol` column).
 - `tfs_only` = `TRUE` — restrict the spatial model to rows with
   `isTF = TRUE`. `FALSE` includes every protein.
 

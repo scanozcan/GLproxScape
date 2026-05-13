@@ -75,6 +75,13 @@ res <- run_caspex(
 )
 ```
 
+`run_caspex()` auto-loads the bundled TF and epigenetic-factor universes
+(`inst/extdata/databases/TFLibrary.txt`,
+`inst/extdata/databases/EpiGenes_main.csv`) when `tf_universe` and
+`epi_universe` are left at their `NULL` defaults — no manual list-loading
+needed. To pin a custom universe, pass a character vector to either
+argument and it overrides the bundled default.
+
 The paper's Zenodo deposit will additionally contain (i) the
 `mmc3_proteome_discoverer_output.xlsx` raw input to the pre-processing
 script, (ii) the pre-processing script itself, and (iii) the runner
