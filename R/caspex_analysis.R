@@ -3467,7 +3467,20 @@ run_caspex <- function(
     motif_scan_pool       = c("selected", "spatial_all"),
     save_plots    = TRUE,
     plot_width    = 10,
-    plot_height   = 8
+    plot_height   = 8,
+    # ── Optional downstream phases ────────────────────────────────────────
+    # `extras` runs run_caspex_extras() after the main run completes,
+    # writing the diagnostic plot pack to <out_dir>/extras/.
+    # `epigenetic` runs run_caspex_epigenetic() after the main run
+    # completes, writing the zone-based chromatin-factor deck to
+    # <out_dir>/epigenetic/.  Both default to TRUE so a single
+    # run_caspex() call produces the full deliverable set; set FALSE
+    # to skip either phase.  Pass through extra params via
+    # `extras_args = list(...)` / `epigenetic_args = list(...)`.
+    extras          = TRUE,
+    epigenetic      = TRUE,
+    extras_args     = list(),
+    epigenetic_args = list()
 ) {
   if (is.null(signal_weight)) signal_weight <- weight_mode
   position_stability <- match.arg(position_stability)
@@ -4056,7 +4069,7 @@ run_caspex <- function(
   message("------------------------------------------------------------------")
   message("Done.")
 
-  invisible(list(
+  result <- list(
     spatial_df     = spatial_df,
     long_data      = long_data,
     pos_map        = pos_map,
@@ -4112,7 +4125,35 @@ run_caspex <- function(
     plots = list(grna = p_grna,
                  heat = p_heat,
                  gc   = p_gc)
-  ))
+  )
+
+  # ── Optional downstream phases ──────────────────────────────────────────
+  if (isTRUE(extras)) {
+    message("\n=== Running diagnostic extras (extras = TRUE) ===")
+    result$extras_result <- tryCatch(
+      do.call(run_caspex_extras,
+              c(list(result, out_dir = file.path(out_dir, "extras")),
+                extras_args)),
+      error = function(e) {
+        warning("run_caspex_extras() failed: ", conditionMessage(e),
+                " (continuing without extras)")
+        NULL
+      })
+  }
+  if (isTRUE(epigenetic)) {
+    message("\n=== Running epigenetic zone-based deck (epigenetic = TRUE) ===")
+    result$epigenetic_result <- tryCatch(
+      do.call(run_caspex_epigenetic,
+              c(list(result, out_dir = file.path(out_dir, "epigenetic")),
+                epigenetic_args)),
+      error = function(e) {
+        warning("run_caspex_epigenetic() failed: ", conditionMessage(e),
+                " (continuing without epigenetic deck)")
+        NULL
+      })
+  }
+
+  invisible(result)
 }
 
 # =============================================================================

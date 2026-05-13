@@ -70,18 +70,21 @@ per-TF deconvolution detail pages) is written to `out_dir`. The
 returned list also exposes `res$spatial_df`, `res$motif_results`,
 `res$promoter_info`, etc. for programmatic post-processing.
 
-For the diagnostic plot pack (TF-pair co-occurrence triangle, sigma
-sensitivity, jackknife stability, etc.):
+By default a single `run_caspex()` call produces the full deliverable
+set — the main TF deck, the diagnostic plot pack (`extras = TRUE`,
+written to `<out_dir>/extras/`), and the zone-based chromatin-factor
+deck (`epigenetic = TRUE`, written to `<out_dir>/epigenetic/`). The
+returned object exposes both as `res$extras_result` and
+`res$epigenetic_result` for programmatic inspection. Set either flag
+to `FALSE` to skip the corresponding phase.
+
+If you prefer to invoke the downstream phases separately (e.g. to tune
+phase-specific parameters interactively), the same two functions are
+exported and accept the `res` object directly:
 
 ```r
-extras <- run_caspex_extras(res, out_dir = file.path(res$out_dir, "extras"))
-```
-
-For chromatin readers / writers / erasers that lack a sequence-specific
-motif (e.g. BRD4, KMT2A, SMARCA4), call the zone-based path:
-
-```r
-extras_epi <- run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epi"))
+extras_out <- run_caspex_extras(res, out_dir = file.path(res$out_dir, "extras"))
+epi_out    <- run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epi"))
 ```
 
 `run_caspex_epigenetic()` auto-loads the bundled `EpiGenes_main.csv`
@@ -203,14 +206,16 @@ res <- run_caspex(
   weight_mode      = "z",
   motif_thresh     = 0.75,                  # JASPAR PWM threshold (frac of max)
   chipatlas        = TRUE                   # set FALSE if you don't want the overlay
+  # extras = TRUE and epigenetic = TRUE are on by default; set to FALSE
+  # to skip the diagnostic pack or the chromatin-factor zone deck.
 )
-
-# 3) Optional: diagnostic plot pack (sigma sensitivity, jackknife, TF co-occurrence, ...)
-run_caspex_extras(res, out_dir = file.path(res$out_dir, "extras"))
-
-# 4) Optional: chromatin-factor zone-based deck (BRD4, KMT2A, SMARCA4, ...)
-run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epigenetic"))
 ```
+
+The diagnostic plot pack (`<out_dir>/extras/`) and the zone-based
+chromatin-factor deck (`<out_dir>/epigenetic/`) are produced
+automatically. Pass phase-specific parameters via
+`extras_args = list(...)` / `epigenetic_args = list(...)`, or set
+either flag to `FALSE` to skip the phase.
 
 After this, `my_gene_analysis/caspex_output/` contains the
 binding-deconvolution PDF, the per-region heatmap, the gRNA-positions
