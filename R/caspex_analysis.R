@@ -416,8 +416,16 @@ rc <- function(s) {
 #' @noRd
 strip_pam <- function(g) {
   g <- toupper(trimws(g))
-  g <- sub("[ACGT]GG$", "", g)   # 3' NGG
-  g <- sub("^CC[ACGT]", "", g)   # 5' CCN
+  # Only strip PAM if the input is longer than the canonical 20-bp SpCas9
+  # protospacer — i.e. the gRNA was provided WITH appended PAM.  A bare
+  # 20-bp protospacer that happens to start with "CCN" or end with "NGG"
+  # by chance would otherwise get over-trimmed and silently fail to
+  # match (the failure mode is fatal when BOTH ends happen to look like
+  # PAM, e.g. CCCAACGGGCGCGCACCAGG -> 14 bp -> "too short to match").
+  if (nchar(g) > 20L) {
+    g <- sub("[ACGT]GG$", "", g)   # 3' NGG
+    g <- sub("^CC[ACGT]", "", g)   # 5' CCN
+  }
   g
 }
 
