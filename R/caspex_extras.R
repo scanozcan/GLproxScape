@@ -35,6 +35,36 @@
 # library() preamble and the "verify caspex_analysis.R was sourced"
 # guard that used to live here are no longer needed.
 
+#' Write a multi-page sensitivity-sweep PDF.
+#'
+#' Internal helper used by B2 (sigma) and D2 (cov_floor) so neither
+#' panel grid gets so dense that it's unreadable. Splits the long-form
+#' sweep data.frame `df` (must contain a `tf` column) into chunks of
+#' `tfs_per_page` TFs and prints one page per chunk by calling
+#' `plot_fn(df_chunk)`.
+#'
+#' @param df Long-form sweep data.frame with a `tf` column.
+#' @param plot_fn Plot function that takes a subset of `df` and returns a ggplot.
+#' @param out_path Output PDF path.
+#' @param tfs_per_page Number of TFs to render per page (default 12).
+#' @param width PDF width in inches (default 12).
+#' @param height PDF height in inches (default 8).
+#' @return Invisibly, NULL.
+#' @noRd
+.save_sensitivity_paginated <- function(df, plot_fn, out_path,
+                                         tfs_per_page = 12,
+                                         width = 12, height = 8) {
+  if (is.null(df) || nrow(df) == 0) return(invisible(NULL))
+  tfs <- sort(unique(df$tf))
+  if (length(tfs) == 0) return(invisible(NULL))
+  pdf(out_path, width = width, height = height)
+  on.exit(dev.off(), add = TRUE)
+  for (i in seq(1L, length(tfs), by = tfs_per_page)) {
+    chunk <- tfs[i:min(i + tfs_per_page - 1L, length(tfs))]
+    print(plot_fn(df[df$tf %in% chunk, , drop = FALSE]))
+  }
+}
+
 # =============================================================================
 # A.1  Per-TF one-pager dashboard
 # =============================================================================
@@ -406,20 +436,33 @@ run_sigma_sensitivity <- function(result,
   cov_floor        <- cov_floor        %||% result$cov_floor        %||% 0.05
   edge_guard_frac  <- edge_guard_frac  %||% result$edge_guard_frac  %||% 0.15
   if (is.null(tfs)) {
-    # use top-15 TFs in motif_results
-    tfs <- intersect(head(as.character(result$spatial_df$protein), 15),
-                     names(result$motif_results))
+    # Every TF that produced JASPAR motif-anchored binding events.
+    # Intersect with motif_results PLUS motif_results_extra so augment-
+    # pool TFs (motif_scan_pool='spatial_all') are visible -- without
+    # the extra set, FOXP4-type augment-pool TFs are silently filtered
+    # out even though they have motif-anchored events.
+    be <- result$binding_events
+    motif_tfs_with_events <- if (!is.null(be$motif_based))
+      unique(be$tf[be$motif_based %in% TRUE]) else unique(be$tf)
+    all_motif_names <- union(names(result$motif_results),
+                              names(result$motif_results_extra %||% list()))
+    tfs <- intersect(motif_tfs_with_events, all_motif_names)
   }
   if (length(tfs) == 0) return(invisible(NULL))
 
+  # Combined motif lookup: try motif_results first, fall back to
+  # motif_results_extra for augment-pool TFs.
+  .get_hits <- function(tf) {
+    h <- result$motif_results[[tf]]$hits
+    if (is.null(h)) h <- result$motif_results_extra[[tf]]$hits
+    if (is.null(h)) integer(0) else h
+  }
+
   message("Sigma sensitivity across ", length(sigmas),
-          " kernels \u00d7 ", length(tfs), " TFs",
-          "  [coverage-aware]",
-          "...")
+          " kernels \u00d7 ", length(tfs), " TFs...")
   rows <- list()
   for (tf in tfs) {
-    hits <- result$motif_results[[tf]]$hits
-    if (is.null(hits)) hits <- integer(0)
+    hits <- .get_hits(tf)
     for (sg in sigmas) {
       ev <- predict_binding_events_coverage_aware(
               tf, result$long_data, result$pos_map, hits,
@@ -711,39 +754,61 @@ plot_pval_histograms <- function(result, binwidth = 0.02) {
 #' @param result (see function body).
 #' @param tol_bp (see function body).
 #' @param min_events (see function body).
+#' @param top_peak_tfs (see function body).
 #' @param top_tfs (see function body).
 #' @export
 plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
+                                  top_peak_tfs = Inf,
                                   top_tfs = 50) {
   ev <- result$binding_events
   if (is.null(ev) || nrow(ev) == 0)
     return(ggplot() + annotate("text", x = 0.5, y = 0.5,
                                label = "No events"))
   # Roster construction:
-  #   (a) top_tfs TFs by total summed event weight (the historical A5
-  #       criterion — captures factors with high-amplitude calls)
-  #   (b) UNION with `result$detail_tfs` if present — the Plot 10
-  #       deck's TF roster (filtered by deconv_min_motif_hits +
-  #       deconv_min_max_lfc upstream in run_caspex). Guarantees
-  #       roster-coherence: any TF with a per-TF detail page on
-  #       Plot 10 also appears on the A5 co-occurrence heatmap.
-  # Restrict events to TFs with >= min_events first.
-  tot_w <- tapply(ev$weight, ev$tf, sum)
+  #   (a) EVERY TF with at least one motif-anchored event
+  #       (motif_based = TRUE). No cap -- motif-anchored predictions
+  #       carry the PWM-evidence weight the paper highlights (e.g.
+  #       FOXP2-FOXP4 co-binding on the FOXP2 promoter), and
+  #       capping them at top-N-by-weight previously dropped real
+  #       calls whenever a few peak-driven outliers had higher
+  #       summed weight.
+  #   (b) Every peak-driven TF (motif_based = FALSE), ranked by
+  #       summed event weight. Default `top_peak_tfs = Inf` keeps
+  #       the full peak-driven roster; pass a finite integer to
+  #       cap if the resulting heatmap gets too dense.
+  #   (c) UNION with `result$detail_tfs` if present -- the Plot 10
+  #       deck's TF roster. Guarantees roster-coherence: any TF
+  #       with a per-TF detail page on Plot 10 also appears on A5.
+  # `top_tfs` is retained as a legacy fallback for results that
+  # pre-date the `motif_based` column (no motif_based -> roster
+  # falls back to top-N by total weight).
   n_ev  <- table(ev$tf)
   with_events <- names(n_ev)[n_ev >= min_events]
-  tot_w <- tot_w[with_events]
-  top_by_weight <- names(head(sort(tot_w, decreasing = TRUE), top_tfs))
 
-  # Union with the Plot 10 deck roster (if exposed on result). Some
-  # Plot 10 TFs may have no event in `binding_events` at all — they
-  # passed the motif-evidence filters but the spatial deconvolution
-  # called no event. Those still show up on Plot 10 (via the
-  # peak-detection / no-PWM-exempt fallback). For A5 we can only plot
-  # TFs that have at least one event, so we further filter the deck
-  # roster to with_events.
+  if (!is.null(ev$motif_based)) {
+    motif_tfs <- unique(as.character(ev$tf[ev$motif_based %in% TRUE]))
+    motif_tfs <- intersect(motif_tfs, with_events)
+    ev_peak   <- ev[!(ev$motif_based %in% TRUE), , drop = FALSE]
+    if (nrow(ev_peak) > 0L && top_peak_tfs > 0L) {
+      peak_w <- tapply(ev_peak$weight, ev_peak$tf, sum)
+      peak_w <- peak_w[!is.na(peak_w)]
+      top_peak <- names(head(sort(peak_w, decreasing = TRUE), top_peak_tfs))
+      top_peak <- intersect(top_peak, with_events)
+    } else {
+      top_peak <- character(0)
+    }
+    primary <- union(motif_tfs, top_peak)
+  } else {
+    # Legacy result with no motif_based column -- fall back to historical
+    # top-N-by-summed-weight roster.
+    tot_w <- tapply(ev$weight, ev$tf, sum)
+    tot_w <- tot_w[with_events]
+    primary <- names(head(sort(tot_w, decreasing = TRUE), top_tfs))
+  }
+
   deck_tfs <- intersect(as.character(result$detail_tfs %||% character(0)),
                          with_events)
-  keep <- union(top_by_weight, deck_tfs)
+  keep <- union(primary, deck_tfs)
 
   ev   <- ev[ev$tf %in% keep, ]
   tfs  <- sort(unique(as.character(ev$tf)))
@@ -824,19 +889,36 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
   # \u2014 successive labels are spaced ~0.7 units apart along the edge,
   # but their text bodies fan out perpendicular so each label has its
   # own sliver of space.
+  # Per-TF source classification for label coloring:
+  # "motif-anchored" if the TF has at least one event with motif_based=TRUE
+  # in the filtered set, "peak-driven" otherwise. Lets the reader
+  # distinguish JASPAR-evidence-backed TFs (e.g. FOXP2, FOXP4) from
+  # motif-free peak-detection fallbacks at a glance on the heatmap.
+  tf_is_motif <- if (!is.null(ev$motif_based)) {
+    vapply(tfs, function(tf)
+      any(ev$motif_based[ev$tf == tf] %in% TRUE), logical(1))
+  } else {
+    rep(TRUE, length(tfs))
+  }
+  tf_source <- ifelse(tf_is_motif, "motif-anchored", "peak-driven")
+
   outward_offset <- 0.45
   left_lbl <- data.frame(
-    tf    = tfs,
-    x     = ((1 + seq_along(tfs)) / 2) - outward_offset * 0.707,
-    y     = ((seq_along(tfs) - 1) / 2) + outward_offset * 0.707,
-    angle = -45,
-    hjust = 1)
+    tf     = tfs,
+    source = tf_source,
+    x      = ((1 + seq_along(tfs)) / 2) - outward_offset * 0.707,
+    y      = ((seq_along(tfs) - 1) / 2) + outward_offset * 0.707,
+    angle  = -45,
+    hjust  = 1,
+    stringsAsFactors = FALSE)
   right_lbl <- data.frame(
-    tf    = tfs,
-    x     = ((seq_along(tfs) + n) / 2) + outward_offset * 0.707,
-    y     = ((n - seq_along(tfs)) / 2) + outward_offset * 0.707,
-    angle = 45,
-    hjust = 0)
+    tf     = tfs,
+    source = tf_source,
+    x      = ((seq_along(tfs) + n) / 2) + outward_offset * 0.707,
+    y      = ((n - seq_along(tfs)) / 2) + outward_offset * 0.707,
+    angle  = 45,
+    hjust  = 0,
+    stringsAsFactors = FALSE)
 
   ggplot(poly_df, aes(x = x, y = y, group = cell_id, fill = frac)) +
     geom_polygon(color = "white", linewidth = 0.2) +
@@ -851,16 +933,24 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
     # starts at the anchor and extends UP-LEFT (perpendicular to the
     # left edge, away from the triangle).
     geom_text(data = left_lbl,
-              aes(x = x, y = y, label = tf, angle = angle, hjust = hjust),
+              aes(x = x, y = y, label = tf, angle = angle,
+                  hjust = hjust, color = source),
               inherit.aes = FALSE,
-              size = 2.5, color = "grey25", vjust = 0.5) +
+              size = 1.8, vjust = 0.5) +
     # RIGHT-edge labels: angle = +45\u00b0 + hjust = 0 makes text extend
     # UP-RIGHT (perpendicular to the right edge, away from the
     # triangle).
     geom_text(data = right_lbl,
-              aes(x = x, y = y, label = tf, angle = angle, hjust = hjust),
+              aes(x = x, y = y, label = tf, angle = angle,
+                  hjust = hjust, color = source),
               inherit.aes = FALSE,
-              size = 2.5, color = "grey25", vjust = 0.5) +
+              size = 1.8, vjust = 0.5) +
+    scale_color_manual(
+      values = c(`motif-anchored` = "grey10",
+                 `peak-driven`    = "#c66a2d"),
+      name   = "TF source",
+      drop   = FALSE) +
+    guides(color = guide_legend(override.aes = list(size = 3))) +
     # Axis-title-style annotations at the apex telling the reader
     # which diagonal direction encodes which matrix axis.
     annotate("text",
@@ -885,9 +975,13 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
     labs(x = NULL, y = NULL,
          title = "TF co-occurrence of binding events",
          subtitle = paste0("% of events within \u00b1", tol_bp,
-                           " bp of another TF's event | top-", top_tfs,
-                           " TFs by summed event weight + Plot 10 deck TFs (",
-                           length(deck_tfs), " roster-merged)  \u00b7  Hi-C-style triangle (matrix is symmetric); baseline in black = same-TF self-coloc"),
+                           " bp of another TF's event | roster = all motif-anchored TFs (n=",
+                           sum(tf_is_motif), ") + ",
+                           sum(!tf_is_motif), " peak-driven TFs",
+                           if (length(deck_tfs) > 0)
+                             paste0(" \u222a ", length(deck_tfs),
+                                    " Plot 10 deck TFs") else "",
+                           "  \u00b7  Hi-C-style triangle (matrix is symmetric); baseline in black = same-TF self-coloc"),
          caption = NULL) +
     theme_caspex() +
     theme(axis.text   = element_blank(),
@@ -988,17 +1082,30 @@ run_covfloor_sensitivity <- function(result,
                                       edge_guard_frac = NULL) {
   weight_mode     <- weight_mode     %||% result$weight_mode     %||% "mod_t"
   edge_guard_frac <- edge_guard_frac %||% result$edge_guard_frac %||% 0.15
-  if (is.null(tfs))
-    tfs <- intersect(unique(result$binding_events$tf),
-                      names(result$motif_results))
+  if (is.null(tfs)) {
+    # Same selection as B2: every TF with motif-anchored binding events,
+    # looked up against motif_results UNION motif_results_extra so the
+    # augment-pool TFs (motif_scan_pool='spatial_all') are included.
+    be <- result$binding_events
+    motif_tfs_with_events <- if (!is.null(be$motif_based))
+      unique(be$tf[be$motif_based %in% TRUE]) else unique(be$tf)
+    all_motif_names <- union(names(result$motif_results),
+                              names(result$motif_results_extra %||% list()))
+    tfs <- intersect(motif_tfs_with_events, all_motif_names)
+  }
   if (length(tfs) == 0) return(invisible(NULL))
+
+  .get_hits <- function(tf) {
+    h <- result$motif_results[[tf]]$hits
+    if (is.null(h)) h <- result$motif_results_extra[[tf]]$hits
+    if (is.null(h)) integer(0) else h
+  }
 
   message("cov_floor sensitivity: ", length(floors), " floors \u00d7 ",
           length(tfs), " TFs...")
   rows <- list()
   for (tf in tfs) {
-    hits <- result$motif_results[[tf]]$hits
-    if (is.null(hits)) hits <- integer(0)
+    hits <- .get_hits(tf)
     for (fl in floors) {
       ev <- predict_binding_events_coverage_aware(
         tf, result$long_data, result$pos_map, hits,
@@ -1326,10 +1433,14 @@ run_caspex_extras <- function(result,
     message("  [B2] sigma sensitivity")
     sg <- run_sigma_sensitivity(result, sigmas = sigmas)
     if (!is.null(sg)) {
-      p <- plot_sigma_sensitivity(sg)
-      ggsave(file.path(out_dir, "B2_sigma_sensitivity.pdf"),
-             p, width = 12, height = 8)
       out$sigma <- sg
+      .save_sensitivity_paginated(
+        sg, plot_sigma_sensitivity,
+        out_path     = file.path(out_dir, "B2_sigma_sensitivity.pdf"),
+        tfs_per_page = 12)
+      write.csv(sg,
+                file.path(out_dir, "B2_sigma_sensitivity.csv"),
+                row.names = FALSE)
     }
   })
 
@@ -1401,12 +1512,13 @@ run_caspex_extras <- function(result,
             paste(cov_floors, collapse = ", "), ")")
     cf <- run_covfloor_sensitivity(result, floors = cov_floors)
     if (!is.null(cf)) {
-      p <- plot_covfloor_sensitivity(cf)
-      ggsave(file.path(out_dir, "D2_covfloor_sensitivity.pdf"),
-             p, width = 12, height = 8)
+      out$cov_floor_sweep <- cf
+      .save_sensitivity_paginated(
+        cf, plot_covfloor_sensitivity,
+        out_path     = file.path(out_dir, "D2_covfloor_sensitivity.pdf"),
+        tfs_per_page = 12)
       write.csv(cf, file.path(out_dir, "D2_covfloor_sensitivity.csv"),
                 row.names = FALSE)
-      out$cov_floor_sweep <- cf
     }
   })
 

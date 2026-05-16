@@ -4,7 +4,13 @@
 \alias{plot_tf_cooccurrence}
 \title{Heat-map of TF-pair co-occurrence of predicted binding events.}
 \usage{
-plot_tf_cooccurrence(result, tol_bp = 50, min_events = 1, top_tfs = 50)
+plot_tf_cooccurrence(
+  result,
+  tol_bp = 50,
+  min_events = 1,
+  top_peak_tfs = Inf,
+  top_tfs = 50
+)
 }
 \arguments{
 \item{result}{(see function body).}
@@ -12,6 +18,8 @@ plot_tf_cooccurrence(result, tol_bp = 50, min_events = 1, top_tfs = 50)
 \item{tol_bp}{(see function body).}
 
 \item{min_events}{(see function body).}
+
+\item{top_peak_tfs}{(see function body).}
 
 \item{top_tfs}{(see function body).}
 }

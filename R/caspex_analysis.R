@@ -3261,6 +3261,22 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param save_plots Write the PDF deck to \code{out_dir} (default TRUE).
 #'   Set FALSE for a fast headless run that only computes the result list.
 #' @param plot_width,plot_height PDF dimensions in inches. Defaults 10 x 8.
+#' @param extras If TRUE (default), run \code{\link{run_caspex_extras}}
+#'   after the main pipeline completes, writing the diagnostic plot pack
+#'   to \code{<out_dir>/extras/}. The returned object exposes the result
+#'   as \code{res$extras_result}. Set FALSE to skip.
+#' @param epigenetic If TRUE (default), run
+#'   \code{\link{run_caspex_epigenetic}} after the main pipeline,
+#'   writing the zone-based chromatin-factor deck to
+#'   \code{<out_dir>/epigenetic/}. The returned object exposes the
+#'   result as \code{res$epigenetic_result}. Set FALSE to skip.
+#' @param extras_args Named list of additional arguments forwarded to
+#'   \code{\link{run_caspex_extras}} when \code{extras = TRUE}. Default
+#'   \code{list()}.
+#' @param epigenetic_args Named list of additional arguments forwarded
+#'   to \code{\link{run_caspex_epigenetic}} when \code{epigenetic = TRUE}
+#'   (e.g. \code{histone_cell_type}, \code{subtract_tf_overlap},
+#'   \code{complex_min_detected}). Default \code{list()}.
 #'
 #' @return Invisibly, a list with: spatial_df, long_data, pos_map,
 #'   gene_info, promoter_info, motif_results, motif_results_extra,
@@ -3641,12 +3657,33 @@ run_caspex <- function(
   }
 
   # ── 5b. Motif-constrained binding deconvolution ──────────────────────────
+  # When motif_scan_pool = "spatial_all", deconvolve the augment-pool TFs
+  # into `binding_events` too -- so every downstream diagnostic (A5 co-
+  # occurrence, B2 sigma sweep, D2 cov_floor sweep, A6 ranked events, B3
+  # jackknife) sees them automatically rather than only Plot 10 reaching
+  # into motif_results_extra directly. Without this union, a TF like
+  # FOXP4 that surfaces on the Plot 10 deck via the augment-pool scan
+  # never makes it into binding_events and silently drops off every
+  # other panel.
+  tfs_for_events           <- motif_tfs
+  motif_results_for_events <- motif_res
+  if (motif_scan_pool == "spatial_all" && length(motif_res_extra) > 0L) {
+    extra_only <- setdiff(names(motif_res_extra), names(motif_res))
+    if (length(extra_only) > 0L) {
+      tfs_for_events <- union(as.character(motif_tfs), extra_only)
+      motif_results_for_events <- c(motif_res, motif_res_extra[extra_only])
+      message("  Including ", length(extra_only),
+              " augment-pool TFs in binding_events ",
+              "(motif_scan_pool='spatial_all')")
+    }
+  }
+
   x_grid_bind <- seq(-upstream, downstream, by = 5)
   binding_events <- predict_all_binding_events(
-    tfs             = motif_tfs,
+    tfs             = tfs_for_events,
     long_data       = long_data,
     pos_map         = pos_map,
-    motif_results   = motif_res,
+    motif_results   = motif_results_for_events,
     x_grid          = x_grid_bind,
     kernel_sigma    = kernel_sigma,
     min_weight_frac = min_weight_frac,
@@ -4017,8 +4054,15 @@ run_caspex <- function(
     #   "common"               — top-composite across all regions (deck 06/07)
     #   "shared:R1+R5"         — significant in >=2 regions   (deck 11/12)
     #   "region-specific:R3"   — region-focal in R3           (deck 08/09)
-    # By construction (see select_motif_tfs), the three buckets are disjoint,
-    # so `deck` has exactly one "provenance type" per TF.
+    #   "augment-pool"         — TF not in any select_motif_tfs bucket but
+    #                            picked up via motif_scan_pool='spatial_all'
+    #                            (its events live in binding_events because
+    #                            of the union above; surfaces on Plot 10
+    #                            when deconv_min_motif_hits > 0).
+    # By construction (see select_motif_tfs), the first three buckets are
+    # disjoint, so `deck` has exactly one "provenance type" per TF.
+    augment_pool_tfs <- if (exists("motif_res_extra", inherits = FALSE))
+      names(motif_res_extra) else character(0)
     .tag_deck <- function(tf) {
       if (tf %in% common_tfs) return("common")
       if (tf %in% shared_tfs) return(paste0("shared:", shared_tag[[tf]]))
@@ -4026,6 +4070,7 @@ run_caspex <- function(
                                        function(v) tf %in% v, logical(1))]
       if (length(rs) > 0) return(paste0("region-specific:",
                                          paste(rs, collapse = ",")))
+      if (tf %in% augment_pool_tfs) return("augment-pool")
       NA_character_
     }
     binding_events$deck <- vapply(as.character(binding_events$tf),

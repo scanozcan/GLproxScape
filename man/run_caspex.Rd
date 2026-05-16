@@ -251,23 +251,22 @@ Set FALSE for a fast headless run that only computes the result list.}
 \item{plot_width, plot_height}{PDF dimensions in inches. Defaults 10 x 8.}
 
 \item{extras}{If TRUE (default), run \code{\link{run_caspex_extras}}
-after the main pipeline completes, writing the diagnostic plot pack to
-\code{<out_dir>/extras/}. The returned object exposes the result as
-\code{res$extras_result}. Set FALSE to skip.}
+after the main pipeline completes, writing the diagnostic plot pack
+to \code{<out_dir>/extras/}. The returned object exposes the result
+as \code{res$extras_result}. Set FALSE to skip.}
 
 \item{epigenetic}{If TRUE (default), run
-\code{\link{run_caspex_epigenetic}} after the main pipeline completes,
+\code{\link{run_caspex_epigenetic}} after the main pipeline,
 writing the zone-based chromatin-factor deck to
-\code{<out_dir>/epigenetic/}. The returned object exposes the result
-as \code{res$epigenetic_result}. Set FALSE to skip.}
+\code{<out_dir>/epigenetic/}. The returned object exposes the
+result as \code{res$epigenetic_result}. Set FALSE to skip.}
 
 \item{extras_args}{Named list of additional arguments forwarded to
-\code{\link{run_caspex_extras}} when \code{extras = TRUE}. Useful for
-phase-specific tuning without bloating the \code{run_caspex} signature.
-Default \code{list()}.}
+\code{\link{run_caspex_extras}} when \code{extras = TRUE}. Default
+\code{list()}.}
 
-\item{epigenetic_args}{Named list of additional arguments forwarded to
-\code{\link{run_caspex_epigenetic}} when \code{epigenetic = TRUE}
+\item{epigenetic_args}{Named list of additional arguments forwarded
+to \code{\link{run_caspex_epigenetic}} when \code{epigenetic = TRUE}
 (e.g. \code{histone_cell_type}, \code{subtract_tf_overlap},
 \code{complex_min_detected}). Default \code{list()}.}
 }
@@ -275,10 +274,8 @@ Default \code{list()}.}
 Invisibly, a list with: spatial_df, long_data, pos_map,
   gene_info, promoter_info, motif_results, motif_results_extra,
   binding_events, plots, plus run metadata (weight_mode, cov_floor,
-  edge_guard_frac, kernel_sigma, upstream, downstream, out_dir,
-  chipatlas_peaks, chipatlas_threshold). When \code{extras = TRUE} or
-  \code{epigenetic = TRUE}, the corresponding phase result attaches as
-  \code{extras_result} or \code{epigenetic_result}.
+  edge_guard_frac, kernel_sigma, upstream, downstream,
+  chipatlas_peaks, chipatlas_threshold).
 }
 \description{
 End-to-end driver for spatial deconvolution of dCas9-APEX2 proximity
