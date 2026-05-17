@@ -6,10 +6,20 @@
 
 #' Null-coalescing operator
 #'
-#' Returns `b` if `a` is NULL, length-0, or NA in its first element;
-#' otherwise returns `a`. Used pervasively for default-fallback patterns
-#' such as `result$weight_mode %||% "z"` so callers can pass a sparse
-#' result list and individual fields default cleanly.
+#' Returns `b` if `a` is NULL; otherwise returns `a`. Used pervasively
+#' for default-fallback patterns such as `result$weight_mode %||% "z"`
+#' so callers can pass a sparse result list and individual fields
+#' default cleanly.
+#'
+#' IMPORTANT: this used to also fall back when `a` was length-0 or
+#' NA in its first element, but `is.na(a[[1]])` errors in R 4.3+ when
+#' `a` is a list whose first element is itself a multi-field list (e.g.
+#' `result$motif_results_extra`), because `is.na()` then returns a
+#' multi-element logical vector and R 4.3+ disallows non-scalars on
+#' either side of `||`. That bug silently knocked out the B2 / D2
+#' sensitivity sweeps via the `motif_results_extra %||% list()` call in
+#' `run_sigma_sensitivity` / `run_covfloor_sensitivity`. Keeping the
+#' operator scalar-safe by checking NULL only.
 #'
 #' Defined module-level (not inside a function) so every R/ file in the
 #' package has it visible at parse time. Replaces the three duplicate
@@ -20,9 +30,7 @@
 #' @param a left-hand operand.
 #' @param b fallback value.
 #' @noRd
-`%||%` <- function(a, b) {
-  if (is.null(a) || length(a) == 0 || is.na(a[[1]])) b else a
-}
+`%||%` <- function(a, b) if (is.null(a)) b else a
 
 #' GLproxScape colour palette
 #'
