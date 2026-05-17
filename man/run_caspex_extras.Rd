@@ -31,9 +31,9 @@ composite TFs union every motif-scanned TF)}
 \item{skip}{Character vector of step names to skip. Any of:
 "one_pager","family","event_density","scatter",
 "cooccurrence","ranked_events",
-"permutation","sigma","jackknife",
-"volcano","correlation","pvalhist",
-"cov_floor_sweep","cov_stack"}
+"permutation","sigma","jackknife","residual",
+"volcano","correlation","pvalhist","motif_vs_beta",
+"cov_rescue","cov_floor_sweep","cov_stack"}
 }
 \value{
 An invisible list of all generated objects

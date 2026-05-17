@@ -16,15 +16,21 @@
 # Contents
 #   A. Biological interpretation
 #       plot_tf_one_pager, plot_tf_family_enrichment,
-#       plot_event_density, plot_composite_vs_specificity
+#       plot_event_density, plot_composite_vs_specificity,
+#       plot_tf_cooccurrence, rank_binding_events
 #   B. Statistical robustness
 #       run_permutation_null, plot_permutation_null,
 #       run_sigma_sensitivity, plot_sigma_sensitivity,
-#       run_event_jackknife, plot_event_jackknife
+#       run_event_jackknife, plot_event_jackknife,
+#       plot_nnls_residual
 #   C. QC / data sanity
 #       plot_volcano_per_region, plot_region_correlation,
-#       plot_pval_histograms
-#   D. Convenience wrapper
+#       plot_pval_histograms, plot_motif_vs_nnls
+#   D. Coverage-aware diagnostics
+#       plot_coverage_rescue_scatter,
+#       run_covfloor_sensitivity, plot_covfloor_sensitivity,
+#       plot_coverage_stack
+#   Wrapper
 #       run_caspex_extras
 # =============================================================================
 
@@ -86,7 +92,7 @@ plot_tf_one_pager <- function(result, tf_name) {
     result$motif_results[[tf_name]]$hits else integer(0)
 
   # Top panel: deconvolution view (full signal + events + motif ticks).
-  # Honour whichever binding-path mode produced `result` — otherwise the
+  # Honour whichever binding-path mode produced `result` \u2014 otherwise the
   # one-pager would silently draw smoothed-NNLS events even when the main
   # run used coverage-aware scoring, and would disagree with result$binding_events.
   p_top <- plot_binding_deconvolution(
@@ -618,6 +624,86 @@ plot_event_jackknife <- function(jk_result, top_n = 40) {
 }
 
 # =============================================================================
+# B.4  NNLS residual plot for a TF
+# =============================================================================
+
+#' Overlay observed signal, NNLS reconstruction, and residual for a TF.
+#'
+#' Three-panel diagnostic for a single TF: the observed CasPEX signal
+#' \eqn{s(x)}, the NNLS reconstruction \eqn{X\beta} from JASPAR motif hits,
+#' and the residual. A large residual = JASPAR motifs for this TF cannot
+#' fully account for the observed signal at this locus (motif-orphan
+#' enrichment, partner co-binding, or coverage-aware-only call).
+#'
+#' @param result Output of \code{\link{run_caspex}}.
+#' @param tf_name TF symbol to plot.
+#' @param kernel_sigma Gaussian labelling-radius sigma in bp (default 250).
+#' @param weight_mode Region-weight mode. NULL inherits from
+#'   \code{result$weight_mode}.
+#' @return A ggplot.
+#' @export
+plot_nnls_residual <- function(result, tf_name, kernel_sigma = 250,
+                                weight_mode = NULL) {
+  weight_mode <- weight_mode %||% result$weight_mode %||% "mod_t"
+  if (!tf_name %in% result$long_data$protein)
+    stop(tf_name, " not in long_data")
+
+  x_grid <- seq(-2500, 500, by = 5)
+  sig <- build_caspex_signal(tf_name, result$long_data, result$pos_map,
+                              x_grid, kernel_sigma, weight_mode)
+  hits <- if (!is.null(result$motif_results[[tf_name]]))
+    result$motif_results[[tf_name]]$hits else integer(0)
+  hits <- hits[!is.na(hits) & hits >= min(x_grid) & hits <= max(x_grid)]
+
+  reconstruction <- numeric(length(x_grid))
+  if (length(hits) > 0 && requireNamespace("nnls", quietly = TRUE)) {
+    X <- vapply(hits,
+                function(m) exp(-0.5 * ((x_grid - m) / kernel_sigma)^2),
+                numeric(length(x_grid)))
+    if (length(hits) == 1) X <- matrix(X, ncol = 1)
+    fit <- nnls::nnls(X, sig$y)
+    reconstruction <- as.numeric(X %*% fit$x)
+  }
+  residual <- sig$y - reconstruction
+
+  df <- rbind(
+    data.frame(x = x_grid, y = sig$y,         lab = "Observed s(x)"),
+    data.frame(x = x_grid, y = reconstruction, lab = "NNLS reconstruction X\u03b2"),
+    data.frame(x = x_grid, y = residual,      lab = "Residual")
+  )
+  df$lab <- factor(df$lab,
+                   levels = c("Observed s(x)",
+                              "NNLS reconstruction X\u03b2",
+                              "Residual"))
+  ss_obs <- sum(sig$y^2)
+  ss_res <- sum(residual^2)
+  r2 <- if (ss_obs > 0) 1 - ss_res / ss_obs else NA_real_
+
+  ggplot(df, aes(x = x, y = y)) +
+    geom_area(aes(fill = lab), alpha = 0.4, color = NA) +
+    geom_line(aes(color = lab), linewidth = 0.5) +
+    geom_hline(yintercept = 0, linewidth = 0.3, color = "grey70") +
+    geom_vline(xintercept = 0, linetype = "dashed",
+               color = COLS$tss, linewidth = 0.6) +
+    facet_wrap(~ lab, ncol = 1, scales = "free_y") +
+    scale_color_manual(values = c("Observed s(x)"                = COLS$guide,
+                                   "NNLS reconstruction X\u03b2" = COLS$low,
+                                   "Residual"                    = COLS$high),
+                       guide = "none") +
+    scale_fill_manual(values = c("Observed s(x)"                = COLS$guide,
+                                  "NNLS reconstruction X\u03b2" = COLS$low,
+                                  "Residual"                    = COLS$high),
+                      guide = "none") +
+    scale_x_continuous(labels = scales::comma) +
+    labs(x = "Position (bp, TSS-relative)", y = "Signal (a.u.)",
+         title = paste0(tf_name, " \u2014 NNLS fit quality"),
+         subtitle = sprintf("%d motif candidates | fit R\u00b2 = %.3f | \u03c3 = %d bp",
+                            length(hits), r2, kernel_sigma)) +
+    theme_caspex() +
+    theme(strip.text = element_text(face = "bold"))
+}
+
+# =============================================================================
 # C.1  Volcano plots per region
 # =============================================================================
 
@@ -735,6 +821,110 @@ plot_pval_histograms <- function(result, binwidth = 0.02) {
          title = "Per-region p-value distribution (QC)",
          subtitle = "Expected: uniform over (0.05, 1], with excess near 0") +
     theme_caspex()
+}
+
+# =============================================================================
+# C.4  Motif-strength vs NNLS-weight
+# =============================================================================
+
+#' Scatter of PWM log-odds score against NNLS beta per motif hit.
+#'
+#' Faceted by TF. Reinforces the point that the bubble area on the main
+#' binding-deconvolution plot is the NNLS coefficient \eqn{\beta}, not the
+#' PWM match score: two motif hits with the same PWM strength can land at
+#' very different \eqn{\beta} because NNLS is reflecting the observed
+#' CasPEX signal, not the static motif quality.
+#'
+#' @param result Output of \code{\link{run_caspex}}.
+#' @param tfs Optional character vector of TF symbols to render. NULL =
+#'   every TF that has both called events and a motif scan.
+#' @param kernel_sigma Gaussian labelling-radius sigma in bp (default 250).
+#' @param weight_mode Region-weight mode. NULL inherits from
+#'   \code{result$weight_mode}.
+#' @return A ggplot.
+#' @export
+plot_motif_vs_nnls <- function(result, tfs = NULL,
+                                kernel_sigma = 250,
+                                weight_mode = NULL) {
+  weight_mode <- weight_mode %||% result$weight_mode %||% "mod_t"
+  if (is.null(tfs))
+    tfs <- intersect(unique(result$binding_events$tf),
+                      names(result$motif_results))
+  if (length(tfs) == 0)
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+                               label = "No motif/event data"))
+
+  x_grid <- seq(-2500, 500, by = 5)
+  rows <- list()
+  for (tf in tfs) {
+    mr <- result$motif_results[[tf]]
+    if (is.null(mr)) next
+    hits <- mr$hits
+    if (length(hits) == 0) next
+
+    # Recompute PWM score per hit on the promoter sequence
+    pwm <- mr$pwm$pwm; L <- mr$pwm$len
+    if (is.null(pwm) || is.null(L)) next
+    seq_chars <- strsplit(result$promoter_info$seq, "")[[1]]
+    rev_map   <- c(A = "T", T = "A", G = "C", C = "G", N = "N")
+    rev_chars <- rev(rev_map[seq_chars])
+    tss_i <- result$promoter_info$tss_offset + 1
+    # fwd scores indexed by 1-based window start
+    fwd_scores <- score_pwm_positions(seq_chars, pwm)
+    rev_scores <- score_pwm_positions(rev_chars, pwm)
+    n <- length(seq_chars)
+
+    fwd_pos_to_tssrel <- function(i) i - tss_i
+    rev_pos_to_tssrel <- function(i) n - (i + L - 2) - tss_i
+
+    # For each hit position (TSS-relative), best PWM score across strands
+    pwm_score <- vapply(hits, function(h) {
+      fi <- which(abs(fwd_pos_to_tssrel(seq_along(fwd_scores)) - h) <= 2)
+      ri <- which(abs(rev_pos_to_tssrel(seq_along(rev_scores)) - h) <= 2)
+      cands <- c(fwd_scores[fi], rev_scores[ri])
+      if (length(cands) == 0) return(NA_real_)
+      max(cands)
+    }, numeric(1))
+
+    # NNLS \u03b2 per hit
+    if (!requireNamespace("nnls", quietly = TRUE)) next
+    sig <- build_caspex_signal(tf, result$long_data, result$pos_map,
+                                x_grid, kernel_sigma, weight_mode)
+    valid <- hits >= min(x_grid) & hits <= max(x_grid)
+    hits_v <- hits[valid]; pwm_score_v <- pwm_score[valid]
+    if (length(hits_v) == 0) next
+    X <- vapply(hits_v,
+                function(m) exp(-0.5 * ((x_grid - m) / kernel_sigma)^2),
+                numeric(length(x_grid)))
+    if (length(hits_v) == 1) X <- matrix(X, ncol = 1)
+    fit <- nnls::nnls(X, sig$y)
+
+    rows[[length(rows) + 1]] <- data.frame(
+      tf = tf, hit_pos = hits_v,
+      pwm_score = pwm_score_v,
+      beta = fit$x,
+      stringsAsFactors = FALSE
+    )
+  }
+  if (length(rows) == 0)
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+                               label = "No motif/beta pairs"))
+  df <- do.call(rbind, rows)
+  df$survived <- df$beta > 0
+
+  ggplot(df, aes(x = pwm_score, y = beta)) +
+    geom_point(aes(color = survived), size = 2, alpha = 0.8) +
+    facet_wrap(~ tf, scales = "free") +
+    scale_color_manual(values = c(`TRUE` = COLS$high, `FALSE` = "grey70"),
+                       labels = c(`TRUE` = "\u03b2 > 0 (kept)",
+                                  `FALSE` = "\u03b2 = 0"),
+                       name = NULL) +
+    labs(x = "JASPAR PWM log-odds score",
+         y = "NNLS coefficient \u03b2",
+         title = "Motif match strength vs NNLS weight",
+         subtitle = "Same PWM score, different \u03b2 \u2192 NNLS is reflecting the signal, not the PWM") +
+    theme_caspex() +
+    theme(legend.position = "bottom")
 }
 
 # =============================================================================
@@ -1017,7 +1207,7 @@ rank_binding_events <- function(result, jk_result = NULL, tol_bp = 100,
   if (is.null(ev) || nrow(ev) == 0)
     return(invisible(NULL))
   out <- ev
-  # Per-TF max-normalized β: places a TF's strongest event at 1
+  # Per-TF max-normalized \u03b2: places a TF's strongest event at 1
   tf_max <- tapply(out$weight, out$tf, max, na.rm = TRUE)
   out$beta_norm <- as.numeric(out$weight / pmax(tf_max[as.character(out$tf)], 1e-9))
   # Attach jackknife survival if we have it
@@ -1056,6 +1246,74 @@ rank_binding_events <- function(result, jk_result = NULL, tol_bp = 100,
     theme_caspex() +
     theme(panel.grid.major.y = element_blank())
   list(ranked = out, plot = p)
+}
+
+# =============================================================================
+# D.1  Coverage-rescue audit scatter
+# =============================================================================
+
+#' Scatter of event \eqn{\beta} vs local coverage, coloured by gRNA distance.
+#'
+#' Each point is one called event from a coverage-aware run. Rescued calls
+#' — the ones that depend on dividing by a small \eqn{C(x)} to survive —
+#' land in the top-left (high \eqn{\beta}, low local_coverage) and are
+#' coloured by how far they sit from the nearest gRNA cut site. This is
+#' the single most direct sanity check on the coverage correction: it
+#' makes "this call only exists because cov_floor clamped the
+#' denominator" visible in one view instead of requiring a cross-reference
+#' against \eqn{C(x)}.
+#'
+#' @param result Output of \code{\link{run_caspex}}. Must have
+#'   \code{local_coverage} and \code{distance_to_nearest_grna} columns in
+#'   \code{result$binding_events} (always present for coverage-aware runs).
+#' @param top_label Number of top-\eqn{\beta} events to label. Default 15.
+#' @return A ggplot.
+#' @export
+plot_coverage_rescue_scatter <- function(result, top_label = 15) {
+  ev <- result$binding_events
+  need <- c("local_coverage", "distance_to_nearest_grna")
+  if (is.null(ev) || nrow(ev) == 0 || !all(need %in% names(ev)))
+    return(ggplot() + annotate("text", x = 0.5, y = 0.5,
+                               label = "No coverage-aware event table"))
+
+  ev$rescued <- ev$local_coverage <= (result$cov_floor %||% 0.05) * 1.5
+  # rank by \u03b2 descending to pick top labels
+  ord <- order(ev$weight, decreasing = TRUE)
+  ev$label <- ""
+  ev$label[ord[seq_len(min(top_label, nrow(ev)))]] <-
+    sprintf("%s @ %+.0f",
+            ev$tf[ord[seq_len(min(top_label, nrow(ev)))]],
+            ev$position[ord[seq_len(min(top_label, nrow(ev)))]])
+
+  ggplot(ev, aes(x = local_coverage, y = weight)) +
+    geom_vline(xintercept = (result$cov_floor %||% 0.05),
+               linetype = "dashed", color = COLS$high, linewidth = 0.3) +
+    annotate("text",
+             x = (result$cov_floor %||% 0.05),
+             y = Inf,
+             label = " cov_floor",
+             color = COLS$high, hjust = 0, vjust = 1.4, size = 3) +
+    geom_point(aes(color = distance_to_nearest_grna,
+                   size  = weight,
+                   shape = rescued),
+               alpha = 0.85, stroke = 0.3) +
+    geom_text(aes(label = label), vjust = -0.9,
+              size = 2.6, fontface = "bold", color = COLS$neutral,
+              check_overlap = TRUE) +
+    scale_color_gradient(low = COLS$guide, high = COLS$high,
+                         name = "dist to gRNA (bp)") +
+    scale_size_continuous(range = c(1.2, 6), guide = "none") +
+    scale_shape_manual(values = c(`TRUE` = 17, `FALSE` = 16),
+                       labels = c(`TRUE` = "near floor (rescued)",
+                                  `FALSE` = "above floor"),
+                       name = NULL) +
+    labs(x = "local coverage C(event_pos)",
+         y = "event weight \u03b2",
+         title = "Coverage-rescue audit",
+         subtitle = paste0("cov_floor = ", result$cov_floor %||% 0.05,
+                           " | triangles sit near the floor and were ",
+                           "amplified by the s/C correction")) +
+    theme_caspex()
 }
 
 # =============================================================================
@@ -1159,7 +1417,7 @@ plot_covfloor_sensitivity <- function(cf_result) {
 }
 
 # =============================================================================
-# D.3  s(x) / C(x) / β(x) per-TF stack (coverage-aware mode only)
+# D.3  s(x) / C(x) / \u03b2(x) per-TF stack (coverage-aware mode only)
 # =============================================================================
 
 #' Three-panel per-TF diagnostic: signal s(x), coverage C(x), ratio β(x).
@@ -1184,7 +1442,7 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
 
   # Use the run's actual window. Newer runs persist `upstream`/`downstream`
   # on the result; older results don't, so fall back to inferring the
-  # window from the gRNA layout (pad ±2σ around the cut-site span so the
+  # window from the gRNA layout (pad \u00b12\u03c3 around the cut-site span so the
   # Gaussian tails fit). Last-resort fallback matches the legacy default
   # but is reached only when neither inference path yields anything.
   pos_r <- as.numeric(result$pos_map[!is.na(result$pos_map)])
@@ -1192,10 +1450,10 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
   downstream <- result$downstream
   if (is.null(upstream) || is.null(downstream)) {
     if (length(pos_r) > 0) {
-      # Window has to span [TSS=0, every guide] plus 2σ padding on each
+      # Window has to span [TSS=0, every guide] plus 2\u03c3 padding on each
       # side so the Gaussian kernel tails fit. Wrap pos_r with 0 so the
       # window always contains the TSS itself even when all guides sit on
-      # one side of it (e.g. Mackenzie FOXP2 — all guides are downstream).
+      # one side of it (e.g. Mackenzie FOXP2 \u2014 all guides are downstream).
       pad        <- 2L * kernel_sigma
       span_lo    <- min(c(0, pos_r))
       span_hi    <- max(c(0, pos_r))
@@ -1225,7 +1483,7 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
   edge_guard_frac <- result$edge_guard_frac %||% cov_floor
   floor_val       <- cov_floor * max(cov)
   beta_curve      <- sig$y / pmax(cov, floor_val)
-  # Match the engine's support mask: β is only trustworthy where C(x) is
+  # Match the engine's support mask: \u03b2 is only trustworthy where C(x) is
   # comfortably above the clamp floor. Outside that region the s/C ratio
   # explodes against the floor and produces artifacts that have nothing to
   # do with binding signal. Zero those out for the plot.
@@ -1304,9 +1562,9 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
 #' @param skip          Character vector of step names to skip. Any of:
 #'                      "one_pager","family","event_density","scatter",
 #'                      "cooccurrence","ranked_events",
-#'                      "permutation","sigma","jackknife",
-#'                      "volcano","correlation","pvalhist",
-#'                      "cov_floor_sweep","cov_stack"
+#'                      "permutation","sigma","jackknife","residual",
+#'                      "volcano","correlation","pvalhist","motif_vs_beta",
+#'                      "cov_rescue","cov_floor_sweep","cov_stack"
 #' @return An invisible list of all generated objects
 #' @export
 run_caspex_extras <- function(result,
@@ -1335,7 +1593,7 @@ run_caspex_extras <- function(result,
   # A plain list would require `<<-`, which doesn't work here: the step
   # expression is captured as a promise whose environment is run_caspex_extras's
   # eval frame, so `<<-` skips that frame and walks up to globalenv looking for
-  # `out` — fails with "object 'out' not found". Environment fix sidesteps that.
+  # `out` \u2014 fails with "object 'out' not found". Environment fix sidesteps that.
   out         <- new.env(parent = emptyenv())
   step_status <- list()                   # name -> "ok" | "skipped" | "failed: ..."
   do_step     <- function(name) !(name %in% skip)
@@ -1357,7 +1615,7 @@ run_caspex_extras <- function(result,
   # --- A.1 per-TF one-pagers (multi-page PDF)
   safely("one_pager", {
     if (is.null(one_pager_tfs)) {
-      # Default: top-10 composite TFs ∪ every TF that was motif-scanned.
+      # Default: top-10 composite TFs \u222a every TF that was motif-scanned.
       # `motif_results` already contains the full union of the three
       # selection buckets (common + shared-focal + region-specific), so
       # this automatically produces a one-pager for every TF that shows
@@ -1458,7 +1716,7 @@ run_caspex_extras <- function(result,
     }
   })
 
-  # --- A.6 ranked events — consumes B.3 if present. Placed AFTER jackknife
+  # --- A.6 ranked events \u2014 consumes B.3 if present. Placed AFTER jackknife
   # so the confidence score can include the survival fraction; if jackknife
   # failed or was skipped, the score falls back to per-TF-normalized beta.
   safely("ranked_events", {
@@ -1473,7 +1731,24 @@ run_caspex_extras <- function(result,
     }
   })
 
-  # --- B.4 NNLS residual — one page per TF with motif hits
+  # --- B.4 NNLS residual \u2014 one page per TF with motif hits
+  safely("residual", {
+    tfs_r <- intersect(unique(result$binding_events$tf),
+                        names(result$motif_results))
+    if (length(tfs_r) > 0) {
+      message("  [B4] NNLS residual for ", length(tfs_r), " TFs")
+      pdf(file.path(out_dir, "B4_nnls_residual.pdf"), width = 9, height = 7)
+      for (tf in tfs_r) {
+        p <- tryCatch(plot_nnls_residual(result, tf),
+                      error = function(e) NULL)
+        if (!is.null(p)) print(p)
+      }
+      dev.off()
+      out$residual_tfs <- tfs_r
+    } else {
+      message("  [B4] skipped: no TFs with both events and motif hits")
+    }
+  })
 
   # --- C.1 volcano per region
   safely("volcano", {
@@ -1503,10 +1778,24 @@ run_caspex_extras <- function(result,
   })
 
   # --- C.4 motif score vs NNLS beta
+  safely("motif_vs_beta", {
+    message("  [C4] motif score vs NNLS beta")
+    p <- plot_motif_vs_nnls(result)
+    ggsave(file.path(out_dir, "C4_motif_vs_nnls_beta.pdf"),
+           p, width = 12, height = 9)
+    out$motif_vs_beta <- p
+  })
 
-  # --- D.1 coverage-rescue audit scatter (auto-skipped for default mode)
+  # --- D.1 coverage-rescue audit scatter
+  safely("cov_rescue", {
+    message("  [D1] coverage-rescue audit scatter")
+    p <- plot_coverage_rescue_scatter(result)
+    ggsave(file.path(out_dir, "D1_coverage_rescue.pdf"),
+           p, width = 9, height = 7)
+    out$cov_rescue <- p
+  })
 
-  # --- D.2 cov_floor sensitivity sweep (auto-skipped for default mode)
+  # --- D.2 cov_floor sensitivity sweep
   safely("cov_floor_sweep", {
     message("  [D2] cov_floor sensitivity (floors: ",
             paste(cov_floors, collapse = ", "), ")")
@@ -1545,7 +1834,7 @@ run_caspex_extras <- function(result,
     }
   })
 
-  # Final tally — what worked, what didn't, what was skipped
+  # Final tally \u2014 what worked, what didn't, what was skipped
   message("\n--- Extras summary -----------------------------------------------")
   for (nm in names(step_status))
     message(sprintf("  %-14s : %s", nm, step_status[[nm]]))
