@@ -1,5 +1,5 @@
 # =============================================================================
-# Engine — gene lookup, gRNA matching, signal modelling, motif scan, and
+# Engine \u2014 gene lookup, gRNA matching, signal modelling, motif scan, and
 # the deconvolution pipeline (run_caspex). Plotting helpers and the
 # top-level user-facing entry points live here too. Internal utilities
 # (`%||%`, `COLS`, `.safe_pdf`) are in R/utils-internal.R; ChIP-Atlas
@@ -15,7 +15,7 @@
 # without code churn.
 .caspex_chipatlas_loaded <- TRUE
 
-# ── Palette & theme ───────────────────────────────────────────────────────────
+# \u2500\u2500 Palette & theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # COLS lives in R/utils-internal.R.
 
 #' GLproxScape default ggplot2 theme
@@ -143,7 +143,7 @@ load_region_data <- function(data_files,
 #'   * `manifest_path`: resolved path to the manifest file.
 #'
 #' @examples
-#' # Use the bundled FOXP2 example dataset
+#' # Use the bundled example dataset
 #' inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
 #'                           package = "GLproxScape")
 #' inputs <- load_caspex_inputs(inputs_dir)
@@ -151,13 +151,10 @@ load_region_data <- function(data_files,
 #'
 #' \dontrun{
 #' # Then feed into the pipeline:
-#' run_caspex(gene       = "FOXP2",
-#'            transcript = "ENST00000901759",
+#' run_caspex(gene       = "<GENE_SYMBOL>",
 #'            grnas      = inputs$grnas,
 #'            data_files = inputs$data_files,
-#'            upstream   = 200,
-#'            downstream = 2000,
-#'            out_dir    = tempfile("foxp2_run_"))
+#'            out_dir    = tempfile("run_"))
 #' }
 #' @export
 load_caspex_inputs <- function(inputs_dir = "inputs",
@@ -200,7 +197,7 @@ load_caspex_inputs <- function(inputs_dir = "inputs",
   if (length(dup) > 0)
     stop("Duplicate region IDs in manifest: ", paste(unique(dup), collapse = ", "))
 
-  # Normalise sequence: "", "NA", "na" → NA_character_
+  # Normalise sequence: "", "NA", "na" \u2192 NA_character_
   seq_raw <- trimws(df$sequence)
   seq_raw[seq_raw == "" | toupper(seq_raw) == "NA"] <- NA_character_
 
@@ -244,10 +241,10 @@ ensembl_get <- function(path, params = list(), accept = "application/json") {
   # request. Content-Type describes a request BODY (which a GET doesn't
   # have), but Ensembl's REST router was treating the hardcoded JSON
   # content-type as a hint to serve JSON even when Accept said text/plain
-  # — wrapping /sequence/region responses in a JSON envelope of the form
+  # \u2014 wrapping /sequence/region responses in a JSON envelope of the form
   #   {"MOLECULE":"DNA","QUERY":"...","seq":"ATCG...",...}
   # which then got blindly fed into gRNA matching as if it were raw
-  # sequence, producing a uniform Δbp drift in pos_map between runs as
+  # sequence, producing a uniform \u0394bp drift in pos_map between runs as
   # the JSON serializer reordered fields. Send Accept only.
   res <- GET(url, add_headers(Accept = accept), timeout(20))
   if (status_code(res) == 200) {
@@ -271,7 +268,7 @@ ensembl_get <- function(path, params = list(), accept = "application/json") {
 #' uniform TSS-frame shifts (e.g. all gRNA positions translate by the same
 #' Δ bp), so it is no longer the default.
 #'
-#' @param gene_name  HGNC symbol (e.g. "MYC")
+#' @param gene_name  HGNC symbol
 #' @param species    Ensembl species string (default "homo_sapiens")
 #' @param transcript Transcript anchor for the TSS:
 #'                   * "canonical" (default): use the Ensembl canonical transcript
@@ -360,7 +357,7 @@ fetch_promoter_seq <- function(gene_info, upstream = 2500, downstream = 500,
   # Resolve species: explicit arg wins, else pull from gene_info (set by
   # lookup_gene()), else default to human for legacy call sites. Kept as an
   # `if`-chain rather than `%||%` because caspex_analysis.R doesn't declare
-  # that operator and we shouldn't force an R ≥ 4.4 dependency.
+  # that operator and we shouldn't force an R \u2265 4.4 dependency.
   if (is.null(species)) species <- gene_info$species
   if (is.null(species) || !nzchar(species)) species <- "homo_sapiens"
   message("  Fetching promoter sequence (", upstream, " up / ", downstream,
@@ -395,7 +392,7 @@ fetch_promoter_seq <- function(gene_info, upstream = 2500, downstream = 500,
 }
 
 # =============================================================================
-# SECTION 3: gRNA → cut site matching
+# SECTION 3: gRNA \u2192 cut site matching
 # =============================================================================
 
 #' Reverse complement of a DNA string
@@ -417,7 +414,7 @@ rc <- function(s) {
 strip_pam <- function(g) {
   g <- toupper(trimws(g))
   # Only strip PAM if the input is longer than the canonical 20-bp SpCas9
-  # protospacer — i.e. the gRNA was provided WITH appended PAM.  A bare
+  # protospacer \u2014 i.e. the gRNA was provided WITH appended PAM.  A bare
   # 20-bp protospacer that happens to start with "CCN" or end with "NGG"
   # by chance would otherwise get over-trimmed and silently fail to
   # match (the failure mode is fatal when BOTH ends happen to look like
@@ -701,8 +698,8 @@ run_spatial_model <- function(long_data, pos_map,
 # (e.g., `1-try-compare.R`) where two `run_caspex()` calls would otherwise
 # each hit the JASPAR API independently. For genes with multiple matrix
 # profiles (HOX family is the canonical case), two independent API calls
-# can return DIFFERENT matrices — different PWM → different score
-# distribution → different hit counts. Caching pins the choice to whatever
+# can return DIFFERENT matrices \u2014 different PWM \u2192 different score
+# distribution \u2192 different hit counts. Caching pins the choice to whatever
 # the first call resolved, so the two compare runs share identical motifs.
 # `.caspex_pwm_cache` lives in the package namespace (defined in
 # R/utils-internal.R, parent = emptyenv()). Within one loaded package
@@ -725,7 +722,7 @@ run_spatial_model <- function(long_data, pos_map,
 #' @return List with id, name, pwm (4×L matrix, rows=ACGT), length; or NULL
 #' @export
 fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
-  # Cache lookup — key by uppercased TF + host to avoid trivial mismatches.
+  # Cache lookup \u2014 key by uppercased TF + host to avoid trivial mismatches.
   cache_key <- paste0(toupper(tf_name), "@", host)
   if (exists(cache_key, envir = .caspex_pwm_cache, inherits = FALSE))
     return(get(cache_key, envir = .caspex_pwm_cache, inherits = FALSE))
@@ -764,7 +761,7 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
     # Pick highest version among matching matrices; break ties deterministically
     # by matrix_id (lexicographic, higher wins). Without the tiebreak the pick
     # depends on the JASPAR API's result ordering, which is server-dependent
-    # and can differ across processes — making motif hit counts drift across
+    # and can differ across processes \u2014 making motif hit counts drift across
     # fresh R sessions for TFs that have multiple matrices at the same max
     # version (e.g. HOX family: MA0898.1, MA1502.1, MA1557.1 all at v=1).
     versions <- vapply(results[keep],
@@ -773,7 +770,7 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
     versions[is.na(versions)] <- 0
     mat_ids  <- vapply(results[keep],
                        function(r) as.character(r$matrix_id), character(1))
-    # order() is deterministic — sort by (-version, -matrix_id) and take first
+    # order() is deterministic \u2014 sort by (-version, -matrix_id) and take first
     ord <- order(-versions, -xtfrm(mat_ids))
     results[[keep[ord[1]]]]
   }
@@ -801,16 +798,16 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
   res2 <- GET(paste0(host, "/api/v1/matrix/", mat_id, "/"),
               query = list(format = "json"), timeout(15))
   if (status_code(res2) != 200) {
-    # Don't cache transient HTTP failures — let the caller retry next time.
+    # Don't cache transient HTTP failures \u2014 let the caller retry next time.
     return(NULL)
   }
   mat  <- content(res2, "parsed", simplifyVector = FALSE)
   pfm  <- mat$pfm  # list with keys A, C, G, T
 
-  # Convert PFM → log-odds PWM  (pseudocount 0.25, bg = 0.25 each)
+  # Convert PFM \u2192 log-odds PWM  (pseudocount 0.25, bg = 0.25 each)
   bases <- c("A", "C", "G", "T")
-  m     <- sapply(bases, function(b) unlist(pfm[[b]]))   # L × 4
-  m     <- t(m)                                           # 4 × L
+  m     <- sapply(bases, function(b) unlist(pfm[[b]]))   # L \u00d7 4
+  m     <- t(m)                                           # 4 \u00d7 L
   m     <- m + 0.25
   m     <- sweep(m, 2, colSums(m), "/")                  # normalise cols
   pwm   <- log2(m / 0.25)                                 # log-odds vs uniform bg
@@ -818,6 +815,363 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
   pwm_obj <- list(id = mat_id, name = tf_name, pwm = pwm, len = ncol(pwm))
   assign(cache_key, pwm_obj, envir = .caspex_pwm_cache)
   pwm_obj
+}
+
+# =============================================================================
+# HOCOMOCO backend (alternative motif source to JASPAR)
+#
+# Used when run_caspex(..., motif_search_engine = "hocomoco"). Provides one
+# drop-in replacement for fetch_jaspar_pwm():
+#
+#   fetch_hocomoco_pwm(tf_name, version = "v12", species = "human")
+#     -> list(id, name, pwm = 4 x L log-odds, len)
+#
+# On first use, the relevant MEME bundle is downloaded to a session-persistent
+# OS cache (tools::R_user_dir("caspex", "cache")). Bundle is ~few MB; parses
+# once per session, ~1300 PWMs (v12 CORE) or ~3000 (v11 full).
+# =============================================================================
+
+#' Resolve the MEME bundle URL(s) for a HOCOMOCO version x species.
+#'
+#' Returns a character vector — try each URL in order until one works
+#' (HOCOMOCO has moved paths between releases).
+#' @param version (see function body).
+#' @param species (see function body).
+#' @noRd
+.hocomoco_url <- function(version, species) {
+  stopifnot(species %in% c("human", "mouse"))
+  stopifnot(version %in% c("v11", "v12"))
+  if (version == "v12") {
+    if (species == "human") {
+      return(c(
+        # current (April 2026) location \u2014 under formatted_motifs/
+        paste0("https://hocomoco12.autosome.org/final_bundle/",
+               "hocomoco12/H12CORE/formatted_motifs/",
+               "H12CORE_meme_format.meme"),
+        # legacy location (pre-2024) kept as fallback
+        paste0("https://hocomoco12.autosome.org/final_bundle/",
+               "hocomoco12/H12CORE/H12CORE_meme_format.meme")))
+    } else {
+      # v12 CORE is human-focused; INVIVO / CORE_mouse have mouse PWMs.
+      return(c(
+        paste0("https://hocomoco12.autosome.org/final_bundle/",
+               "hocomoco12/H12INVIVO/formatted_motifs/",
+               "H12INVIVO_meme_format.meme"),
+        paste0("https://hocomoco12.autosome.org/final_bundle/",
+               "hocomoco12/H12CORE_mouse/formatted_motifs/",
+               "H12CORE_mouse_meme_format.meme"),
+        paste0("https://hocomoco12.autosome.org/final_bundle/",
+               "hocomoco12/H12CORE_mouse/",
+               "H12CORE_mouse_meme_format.meme")))
+    }
+  }
+  if (version == "v11") {
+    return(switch(species,
+      "human" = paste0("https://hocomoco11.autosome.org/final_bundle/",
+                       "hocomoco11/full/HUMAN/mono/",
+                       "HOCOMOCOv11_full_HUMAN_mono_meme_format.meme"),
+      "mouse" = paste0("https://hocomoco11.autosome.org/final_bundle/",
+                       "hocomoco11/full/MOUSE/mono/",
+                       "HOCOMOCOv11_full_MOUSE_mono_meme_format.meme")))
+  }
+}
+
+#' Local cache path for a HOCOMOCO bundle.
+#'
+#' Uses \code{tools::R_user_dir} so the cache survives across sessions and
+#' is OS-appropriate.
+#' @param version (see function body).
+#' @param species (see function body).
+#' @noRd
+.hocomoco_cache_path <- function(version, species) {
+  base <- tools::R_user_dir("caspex", which = "cache")
+  dir.create(base, recursive = TRUE, showWarnings = FALSE)
+  file.path(base, sprintf("hocomoco_%s_%s.meme", version, species))
+}
+
+#' Download a HOCOMOCO MEME bundle to the local cache.
+#'
+#' Lazy-loaded on first call to \code{\link{fetch_hocomoco_pwm}} or
+#' \code{\link{load_hocomoco_pwms}}; explicit invocation is rarely
+#' necessary outside firewalled environments where the automatic
+#' download is blocked.
+#'
+#' @param version   HOCOMOCO release: \code{"v12"} (default) or \code{"v11"}.
+#' @param species   \code{"human"} (default) or \code{"mouse"}.
+#' @param force     Logical. Redownload even if the cache file already
+#'                  exists. Default \code{FALSE}.
+#' @param from_file Optional path to a manually-downloaded MEME file. If
+#'                  provided, the file is copied into the cache slot for
+#'                  \code{(version, species)} instead of being fetched from
+#'                  the network. Use this if the automatic download is
+#'                  blocked.
+#' @return The path to the cached bundle (invisibly).
+#' @export
+download_hocomoco_bundle <- function(version = "v12", species = "human",
+                                      force = FALSE, from_file = NULL) {
+  dest <- .hocomoco_cache_path(version, species)
+  if (file.exists(dest) && !force) return(invisible(dest))
+
+  # Manual-file shortcut
+  if (!is.null(from_file)) {
+    if (!file.exists(from_file))
+      stop("from_file does not exist: ", from_file)
+    if (file.size(from_file) < 1000)
+      stop("from_file looks too small to be a MEME bundle: ", from_file)
+    dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
+    ok <- file.copy(from_file, dest, overwrite = TRUE)
+    if (!ok) stop("Failed to copy ", from_file, " -> ", dest)
+    message("Cached MEME bundle from local file:\n  ", from_file,
+            "\n  -> ", dest, " (",
+            format(file.size(dest), big.mark = ","), " bytes)")
+    return(invisible(dest))
+  }
+
+  # Network download: try each candidate URL in order
+  urls <- .hocomoco_url(version, species)
+  last_err <- NULL
+  for (url in urls) {
+    message("Downloading HOCOMOCO ", version, " (", species, ")\n  ", url)
+    tmp <- tempfile(fileext = ".meme")
+    ok <- tryCatch({
+      utils::download.file(url, tmp, mode = "wb", quiet = FALSE,
+                           method = "libcurl")
+      TRUE
+    }, error = function(e) { last_err <<- e; FALSE },
+       warning = function(w) { last_err <<- w; FALSE })
+    if (ok && file.exists(tmp) && file.size(tmp) > 1e5) {
+      dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
+      file.rename(tmp, dest)
+      message("  cached at ", dest, " (",
+              format(file.size(dest), big.mark = ","), " bytes)")
+      return(invisible(dest))
+    }
+    try(unlink(tmp), silent = TRUE)
+    message("  ... that URL did not return a valid MEME bundle, trying next.")
+  }
+
+  # All URLs failed \u2014 give the user an actionable message
+  stop(sprintf(
+"Could not download HOCOMOCO %s %s from any known URL.
+
+Tried:
+%s
+
+Workaround \u2014 download the MEME bundle manually in a browser and point
+the pipeline at the local file:
+
+  download_hocomoco_bundle(
+    version  = %s,
+    species  = %s,
+    from_file = \"/path/to/your/downloaded.meme\"
+  )
+
+Typical download page: https://hocomoco12.autosome.org/downloads_v12
+Last error was:
+  %s
+",
+    version, species,
+    paste0("  - ", urls, collapse = "\n"),
+    dQuote(version, q = FALSE), dQuote(species, q = FALSE),
+    if (!is.null(last_err)) conditionMessage(last_err) else "(unknown)"),
+    call. = FALSE)
+}
+
+#' Parse a MEME-format motif file into a named list of PPMs.
+#'
+#' Sufficient subset for HOCOMOCO format files (MOTIF / letter-probability
+#' matrix / matrix-row blocks). Returns a list keyed by motif ID, each
+#' element a list with \code{$id}, \code{$alt}, \code{$gene} (uppercase
+#' symbol), \code{$ppm} (4 x w numeric probability matrix), \code{$w}
+#' (motif width).
+#'
+#' @param path Path to a MEME-format motif file.
+#' @return Named list of parsed motif entries.
+#' @noRd
+parse_meme_file <- function(path) {
+  lines <- readLines(path, warn = FALSE)
+  motifs <- list()
+  n <- length(lines)
+  i <- 1
+  while (i <= n) {
+    if (grepl("^MOTIF\\s", lines[i])) {
+      toks <- strsplit(trimws(sub("^MOTIF\\s+", "", lines[i])), "\\s+")[[1]]
+      motif_id <- toks[1]
+      alt_name <- if (length(toks) >= 2) toks[2] else motif_id
+      j <- i + 1
+      while (j <= n && !grepl("^letter-probability matrix", lines[j])) j <- j + 1
+      if (j > n) { i <- i + 1; next }
+      wmatch <- regmatches(lines[j], regexpr("w=\\s*[0-9]+", lines[j]))
+      if (length(wmatch) == 0) { i <- j + 1; next }
+      w <- as.integer(sub("w=\\s*", "", wmatch))
+      if (is.na(w) || w <= 0) { i <- j + 1; next }
+      ppm <- matrix(NA_real_, 4, w)
+      ok <- TRUE
+      for (k in seq_len(w)) {
+        if (j + k > n) { ok <- FALSE; break }
+        vals <- suppressWarnings(scan(text = lines[j + k],
+                                       what = numeric(),
+                                       quiet = TRUE, n = 4))
+        if (length(vals) != 4) { ok <- FALSE; break }
+        ppm[, k] <- vals
+      }
+      if (ok) {
+        motifs[[motif_id]] <- list(id    = motif_id,
+                                   alt   = alt_name,
+                                   gene  = .extract_gene_symbol(motif_id),
+                                   ppm   = ppm,
+                                   w     = w)
+      }
+      i <- j + w + 1
+    } else {
+      i <- i + 1
+    }
+  }
+  motifs
+}
+
+#' Extract a gene symbol from a HOCOMOCO motif identifier.
+#'
+#' Handles both v11 (\code{SOX2_HUMAN.H11MO.0.A}) and v12
+#' (\code{SOX2.H12CORE.0.P.B}) naming conventions.
+#' @param motif_id (see function body).
+#' @noRd
+.extract_gene_symbol <- function(motif_id) {
+  g <- strsplit(motif_id, "\\.")[[1]][1]
+  g <- sub("_(HUMAN|MOUSE|RAT)$", "", g, ignore.case = TRUE)
+  toupper(g)
+}
+
+#' HOCOMOCO quality rating from the trailing letter of the motif id.
+#'
+#' Lower is better (A = 1, B = 2, ...). Missing or non-letter -> 99 (worst).
+#' @param motif_id (see function body).
+#' @noRd
+.extract_quality <- function(motif_id) {
+  parts <- strsplit(motif_id, "\\.")[[1]]
+  last  <- parts[length(parts)]
+  if (nchar(last) == 1 && last %in% LETTERS)
+    return(match(last, LETTERS))
+  99
+}
+
+# In-memory cache of parsed HOCOMOCO bundles (one entry per version_species).
+.hocomoco_env <- new.env(parent = emptyenv())
+
+#' Load HOCOMOCO PWMs into memory, indexed by gene symbol.
+#'
+#' Downloads the bundle on first use. Within one session, subsequent calls
+#' return the cached list (held in package-private \code{.hocomoco_env}).
+#' For each gene that appears in multiple HOCOMOCO matrices, the
+#' best-rated matrix (A > B > C > D) is retained.
+#'
+#' @param version HOCOMOCO release: \code{"v12"} (default) or \code{"v11"}.
+#' @param species \code{"human"} (default) or \code{"mouse"}.
+#' @return Named list of motif entries indexed by uppercase gene symbol.
+#' @export
+load_hocomoco_pwms <- function(version = "v12", species = "human") {
+  key <- paste(version, species, sep = "_")
+  if (!is.null(.hocomoco_env[[key]])) return(.hocomoco_env[[key]])
+
+  bundle <- .hocomoco_cache_path(version, species)
+  if (!file.exists(bundle)) download_hocomoco_bundle(version, species)
+
+  message("Parsing HOCOMOCO ", version, " (", species, ") bundle...")
+  motifs <- parse_meme_file(bundle)
+  if (length(motifs) == 0)
+    stop("No motifs parsed from ", bundle,
+         " \u2014 file may be corrupt. Try `download_hocomoco_bundle(..., force=TRUE)`")
+
+  # Collapse to one PWM per gene, preferring the lowest (= best) quality code.
+  by_gene <- list()
+  for (nm in names(motifs)) {
+    g <- motifs[[nm]]$gene
+    q <- .extract_quality(nm)
+    if (is.null(by_gene[[g]]) || q < by_gene[[g]]$q)
+      by_gene[[g]] <- list(motif = motifs[[nm]], q = q)
+  }
+  result <- lapply(by_gene, `[[`, "motif")
+  message("  -> ", length(result), " unique TFs from ",
+          length(motifs), " total matrices")
+  .hocomoco_env[[key]] <- result
+  result
+}
+
+#' Clear the in-memory HOCOMOCO cache.
+#'
+#' Does not delete the on-disk MEME bundle; the next call to
+#' \code{\link{load_hocomoco_pwms}} will reparse the cached file rather
+#' than re-downloading. Useful after \code{download_hocomoco_bundle(...,
+#' force = TRUE)} to drop any stale in-memory representation.
+#'
+#' @return \code{TRUE}, invisibly.
+#' @export
+clear_hocomoco_memory_cache <- function() {
+  rm(list = ls(.hocomoco_env), envir = .hocomoco_env)
+  invisible(TRUE)
+}
+
+#' Fetch a HOCOMOCO PWM for a TF symbol.
+#'
+#' Drop-in replacement for \code{\link{fetch_jaspar_pwm}}: same return
+#' shape \code{list(id, name, pwm, len)} where \code{pwm} is a 4 x L
+#' log-odds matrix against a uniform background.
+#'
+#' @param tf_name TF gene symbol. Matched case-insensitively against the
+#'   HOCOMOCO bundle (HOCOMOCO uses uppercase symbols internally).
+#' @param version HOCOMOCO release: \code{"v12"} (default) or \code{"v11"}.
+#' @param species \code{"human"} (default) or \code{"mouse"}.
+#' @return PWM list \code{(id, name, pwm, len)}, or \code{NULL} if the TF
+#'   is absent from the loaded HOCOMOCO bundle.
+#' @export
+fetch_hocomoco_pwm <- function(tf_name, version = "v12", species = "human") {
+  pwms <- load_hocomoco_pwms(version, species)
+  key <- toupper(tf_name)
+  m <- pwms[[key]]
+  if (is.null(m)) return(NULL)
+
+  # PPM -> log-odds PWM with uniform background (same convention as JASPAR)
+  ppm <- pmax(m$ppm, 1e-6)
+  pwm <- log2(ppm / 0.25)
+  list(id = m$id, name = tf_name, pwm = pwm, len = m$w)
+}
+
+#' List all TFs available in the loaded HOCOMOCO bundle.
+#'
+#' @param version HOCOMOCO release: \code{"v12"} (default) or \code{"v11"}.
+#' @param species \code{"human"} (default) or \code{"mouse"}.
+#' @return Character vector of uppercase gene symbols, sorted alphabetically.
+#' @export
+list_hocomoco_tfs <- function(version = "v12", species = "human") {
+  sort(names(load_hocomoco_pwms(version, species)))
+}
+
+#' Report HOCOMOCO coverage for a set of TF symbols.
+#'
+#' Useful as a pre-flight check before \code{run_caspex(motif_search_engine
+#' = "hocomoco")}: reports how many of the supplied TFs are present in the
+#' HOCOMOCO bundle and lists the missing ones.
+#'
+#' @param tf_names Character vector of TF gene symbols to look up.
+#' @param version  HOCOMOCO release: \code{"v12"} (default) or \code{"v11"}.
+#' @param species  \code{"human"} (default) or \code{"mouse"}.
+#' @return Invisibly, a data.frame with columns \code{tf} and
+#'   \code{in_hocomoco} (logical).
+#' @export
+check_hocomoco_coverage <- function(tf_names,
+                                     version = "v12", species = "human") {
+  tfs <- toupper(tf_names)
+  available <- names(load_hocomoco_pwms(version, species))
+  found <- tfs %in% available
+  message(sum(found), " / ", length(tfs),
+          " TFs found in HOCOMOCO ", version, " (", species, ")")
+  missing <- tfs[!found]
+  if (length(missing) > 0)
+    message("  not found: ", paste(head(missing, 20), collapse = ", "),
+            if (length(missing) > 20)
+              paste0("  (+", length(missing) - 20, " more)") else "")
+  invisible(data.frame(tf = tfs, in_hocomoco = found,
+                        stringsAsFactors = FALSE))
 }
 
 #' Score a DNA sequence with a PWM
@@ -843,18 +1197,18 @@ score_pwm_positions <- function(seq_chars, pwm) {
   # we replace NAs with a column-wise 0 contribution via a dummy row 5.
   idx <- base_idx[seq_chars]
 
-  # Build a ns × L matrix where row i is positions [i, i+L-1] of `idx`.
+  # Build a ns \u00d7 L matrix where row i is positions [i, i+L-1] of `idx`.
   # `embed()` returns rows in reverse column order (j = L, L-1, ..., 1), so
   # we flip left-to-right to align column j with PWM column j.
   win <- embed(idx, L)[, L:1, drop = FALSE]
 
   # Augment PWM with a dummy 5th row of zeros so NA-index lookups become
-  # "contribute 0 here" — same behaviour as the legacy `if (!is.na(b))`.
+  # "contribute 0 here" \u2014 same behaviour as the legacy `if (!is.na(b))`.
   pwm_aug <- rbind(pwm, rep(0, L))
   win[is.na(win)] <- 5L
 
   # For each window column j, `pwm_aug[win[, j], j]` is a length-ns vector of
-  # contributions. Build the ns × L score matrix by column, then rowSums.
+  # contributions. Build the ns \u00d7 L score matrix by column, then rowSums.
   score_mat <- vapply(seq_len(L),
                       function(j) pwm_aug[win[, j], j],
                       numeric(ns))
@@ -939,12 +1293,29 @@ scan_sequence <- function(promoter_info, pwm_obj, threshold_frac = 0.80) {
 #'         $score_frac (per-hit fraction of max log-odds, parallel to
 #'         $hits), $pwm, and $n_hits.
 #' @noRd
-run_motif_scan <- function(tf_names, promoter_info, threshold_frac = 0.80) {
-  message("\nRunning JASPAR motif scan for ", length(tf_names), " TFs...")
+run_motif_scan <- function(tf_names, promoter_info, threshold_frac = 0.80,
+                            engine = c("jaspar", "hocomoco"),
+                            hocomoco_version = "v12",
+                            hocomoco_species = "human") {
+  engine <- match.arg(engine)
+  engine_label <- if (engine == "jaspar") "JASPAR"
+                  else sprintf("HOCOMOCO %s (%s)", hocomoco_version,
+                               hocomoco_species)
+  message("\nRunning ", engine_label, " motif scan for ", length(tf_names),
+          " TFs...")
+  # Per-TF PWM fetcher, parameterized by engine. fetch_jaspar_pwm goes over
+  # REST per TF; fetch_hocomoco_pwm hits the in-memory cache after the first
+  # bundle parse (lazy-loaded on first call below).
+  .fetch <- if (engine == "jaspar") {
+    function(tf) fetch_jaspar_pwm(tf)
+  } else {
+    function(tf) fetch_hocomoco_pwm(tf, version = hocomoco_version,
+                                    species = hocomoco_species)
+  }
   out <- list()
   for (tf in tf_names) {
     message("  ", tf, " ...", appendLF = FALSE)
-    pwm <- tryCatch(fetch_jaspar_pwm(tf),
+    pwm <- tryCatch(.fetch(tf),
                     error = function(e) { message(" error: ", conditionMessage(e)); NULL })
     if (is.null(pwm)) { message(" no motif found"); next }
     hits <- scan_sequence(promoter_info, pwm, threshold_frac)
@@ -968,8 +1339,8 @@ run_motif_scan <- function(tf_names, promoter_info, threshold_frac = 0.80) {
 # collapses two distinct binding events (e.g., R1=3, R2=0, R3=2) into one
 # phantom peak at R2. This section builds a continuous CasPEX signal along
 # the promoter and decomposes it onto JASPAR motif positions via NNLS so
-# multiple bindings — and bindings that fall *between* two adjacent
-# enriched regions — can be separated and localised.
+# multiple bindings \u2014 and bindings that fall *between* two adjacent
+# enriched regions \u2014 can be separated and localised.
 # =============================================================================
 
 #' Continuous CasPEX signal for a TF along x_grid.
@@ -1002,7 +1373,7 @@ build_caspex_signal <- function(tf_name, long_data, pos_map,
   # `weighted` is a legacy alias for `lfc_x_negp`
   if (weight_mode == "weighted") weight_mode <- "lfc_x_negp"
 
-  # --- All regions from pos_map (with valid positions) — used for lollipops.
+  # --- All regions from pos_map (with valid positions) \u2014 used for lollipops.
   # Every region the guide layout covers should appear on the plot, even if
   # the protein was undetected in that region or reported lfc = NA. Undetected
   # / NA entries are plotted at lfc = 0 (dot on baseline, no bar) so the
@@ -1201,13 +1572,13 @@ find_local_maxima <- function(x, y, min_height = 0, min_dist = 150) {
 # Note: an earlier compute_mle_positions() function lived here, providing
 # a generative-model MLE position track for Plot 10. It was removed
 # because the diagnostic added visual noise without changing the
-# bubble-placement story in any actionable way — the bubble at β-peak
+# bubble-placement story in any actionable way \u2014 the bubble at \u03b2-peak
 # already conveys the relevant per-event information, and the MLE band
 # duplicated information that's already available from the s(x) curve
 # and the per-region logFC stems. Removed: the function definition, the
 # `mle_position` parameter on every call site
-# (predict_binding_events_coverage_aware → predict_all_binding_events →
-# plot_binding_deconvolution → run_caspex), the has_mle layout block in
+# (predict_binding_events_coverage_aware \u2192 predict_all_binding_events \u2192
+# plot_binding_deconvolution \u2192 run_caspex), the has_mle layout block in
 # Plot 10, the schema columns added by add_diag, and the result-list
 # bookkeeping. The Wild bootstrap "Position support" infrastructure
 # remains in place under `position_stability` for back-compatibility but
@@ -1249,11 +1620,11 @@ predict_binding_events_coverage_aware <- function(
     motif_scores    = NULL,
     # `motif_score_weight`: how to incorporate PWM score into the per-motif
     # weight emitted from each above-threshold zone.
-    #   "none"   - default, legacy behaviour: weight = β(motif_pos).
-    #   "linear" - weight = β(motif_pos) × score_frac.
-    #   "log"    - weight = β(motif_pos) × 2^(score_frac − 1)
-    #              (compresses the difference; weak motifs get 0.5×, strong
-    #               motifs get 1.0×).
+    #   "none"   - default, legacy behaviour: weight = \u03b2(motif_pos).
+    #   "linear" - weight = \u03b2(motif_pos) \u00d7 score_frac.
+    #   "log"    - weight = \u03b2(motif_pos) \u00d7 2^(score_frac \u2212 1)
+    #              (compresses the difference; weak motifs get 0.5\u00d7, strong
+    #               motifs get 1.0\u00d7).
     motif_score_weight = c("none", "linear", "log"),
     x_grid          = seq(-2500, 500, by = 5),
     kernel_sigma    = 300,
@@ -1263,26 +1634,26 @@ predict_binding_events_coverage_aware <- function(
     weight_mode     = "z",
     cov_floor       = 0.05,
     # `edge_guard_frac`: fraction-of-max-coverage threshold that defines the
-    # in-support region. β is trusted only where c_grid > edge_guard_frac ×
+    # in-support region. \u03b2 is trusted only where c_grid > edge_guard_frac \u00d7
     # max(c_grid); elsewhere it is zeroed before zone detection and peak
-    # picking. MUST be ≥ cov_floor — the clamp only prevents β from going
-    # to infinity, while this guard prevents β from being evaluated in the
+    # picking. MUST be \u2265 cov_floor \u2014 the clamp only prevents \u03b2 from going
+    # to infinity, while this guard prevents \u03b2 from being evaluated in the
     # low-denominator transition band just inside the clamp (where a real
     # peak-finder / zone-finder can still see the ramp as a spurious peak
-    # or zone). Default 0.25 (= 5× default cov_floor); raised from 0.15
-    # because σ=300 extends the single-gRNA tail far enough that 0.15
-    # leaked edge events ~1.4σ west of the westernmost guide. At 0.25 the
-    # trust boundary sits ~1σ outside an isolated guide, matching the
-    # geometric assumption that β is uninformative in the single-gRNA
+    # or zone). Default 0.25 (= 5\u00d7 default cov_floor); raised from 0.15
+    # because \u03c3=300 extends the single-gRNA tail far enough that 0.15
+    # leaked edge events ~1.4\u03c3 west of the westernmost guide. At 0.25 the
+    # trust boundary sits ~1\u03c3 outside an isolated guide, matching the
+    # geometric assumption that \u03b2 is uninformative in the single-gRNA
     # tail (numerator and denominator are the same Gaussian and cancel).
-    # Raise further (0.30) for sparser gRNA layouts; lower (0.15–0.20)
+    # Raise further (0.30) for sparser gRNA layouts; lower (0.15\u20130.20)
     # for densely tiled regions where multi-guide overlap lifts max(C).
     edge_guard_frac = 0.25,
     # ---- readability guards (prevent HOXB6-style plateau floods) ----
     # `zone_peak_frac`: within each above-threshold zone, only keep motifs
-    # whose local β is >= zone_peak_frac × max(β) inside that zone. This
+    # whose local \u03b2 is >= zone_peak_frac \u00d7 max(\u03b2) inside that zone. This
     # filters shoulders of broad plateaus while leaving motifs on genuinely
-    # elevated slopes (e.g. GATA6 R7-R6 ramp, β > 0.8 × zone peak) alone.
+    # elevated slopes (e.g. GATA6 R7-R6 ramp, \u03b2 > 0.8 \u00d7 zone peak) alone.
     # Set to 0 to disable and emit every zone motif as before.
     zone_peak_frac  = 0.50,
     # `max_events_per_tf`: hard cap on bubbles per TF, top-N by weight.
@@ -1293,28 +1664,28 @@ predict_binding_events_coverage_aware <- function(
     max_events_per_tf = 30,
     # `merge_position`: how to report the position for a merged cluster of
     # motif candidates. "argmax" (default, new behaviour) snaps the bubble
-    # to the strongest motif in the cluster — so every motif-based bubble
+    # to the strongest motif in the cluster \u2014 so every motif-based bubble
     # sits exactly on a real motif tick, matching what the no-motif
     # fallback does at an s(x) peak. "centroid" keeps the legacy
     # amplitude-weighted mean position, which can land between motifs when
     # 2-3 of them chain within merge_dist. Motif-less-zone bubbles (single-
-    # candidate clusters emitted at a zone's β peak) are unaffected — they
+    # candidate clusters emitted at a zone's \u03b2 peak) are unaffected \u2014 they
     # carry their peak position regardless of this setting.
     merge_position = c("argmax", "centroid"),
     # `max_grna_distance`: hard geometric cap in bp on how far a called
     # event can sit from the nearest gRNA. Events whose
     # `distance_to_nearest_grna` exceeds this value are dropped AFTER the
     # merge step. Motivation: in the single-gRNA tail (positions west of
-    # the westernmost guide or east of the easternmost), β = s/C is
+    # the westernmost guide or east of the easternmost), \u03b2 = s/C is
     # mathematically flat because numerator and denominator share the
-    # same Gaussian shape and cancel — so the zone detector can emit a
-    # swarm of bubbles all carrying the same β, even at positions where
+    # same Gaussian shape and cancel \u2014 so the zone detector can emit a
+    # swarm of bubbles all carrying the same \u03b2, even at positions where
     # the labeling model provides no geometric information to distinguish
     # them. This cap is the belt-and-suspenders companion to
-    # `edge_guard_frac`: it scales automatically with σ, which the
+    # `edge_guard_frac`: it scales automatically with \u03c3, which the
     # relative-coverage mask does not. Default NULL resolves to
-    # `kernel_sigma` at runtime (so "events within one σ of a guide").
-    # Set `Inf` to disable. Set to a smaller multiple of σ (e.g. 0.75·σ)
+    # `kernel_sigma` at runtime (so "events within one \u03c3 of a guide").
+    # Set `Inf` to disable. Set to a smaller multiple of \u03c3 (e.g. 0.75\u00b7\u03c3)
     # to be stricter about tail leakage.
     max_grna_distance = NULL,
     # `edge_grna_weight_cap`: fraction-of-Gaussian-weight-sum above which an
@@ -1326,13 +1697,13 @@ predict_binding_events_coverage_aware <- function(
     # Motivates this: `max_grna_distance` gates events by distance to the
     # NEAREST guide, which protects against tail leakage past the outermost
     # gRNA, but does nothing for interior events that still get much of
-    # their β from the westernmost / easternmost guide's kernel tail. In
-    # ATP7B at σ=300, R7(-1945) contributes ~37% of the summed Gaussian
-    # weight at position -1620 even though R6(-1507) is only 113 bp away —
+    # their \u03b2 from the westernmost / easternmost guide's kernel tail. In
+    # ATP7B at \u03c3=300, R7(-1945) contributes ~37% of the summed Gaussian
+    # weight at position -1620 even though R6(-1507) is only 113 bp away \u2014
     # producing a huge "edge-inflated" bubble at a position that is fully
     # inside the trusted support mask.
     #
-    # 0.30 is a reasonable starting point — it keeps events that are
+    # 0.30 is a reasonable starting point \u2014 it keeps events that are
     # solidly backed by interior guides while rejecting those where a
     # single boundary guide accounts for more than a third of the local
     # per-gRNA weight sum.  NULL (default) disables the filter entirely,
@@ -1342,7 +1713,7 @@ predict_binding_events_coverage_aware <- function(
     # measures how robust a called event's position is to noise perturbation
     # of the per-region observed weights.
     #
-    # NOT a confidence interval on the TF's true binding location. A high-β
+    # NOT a confidence interval on the TF's true binding location. A high-\u03b2
     # event can still be a distant binder (high enrichment despite distance);
     # this metric captures the position-spread the detector itself would
     # produce if the same dataset had landed slightly differently under
@@ -1351,18 +1722,18 @@ predict_binding_events_coverage_aware <- function(
     # a narrow spread means the position is determined by the data, not by
     # noise.
     #
-    #   "none"           — default; no bootstrap; output unchanged.
-    #   "wild_bootstrap" — Rademacher Wild bootstrap on the residuals of a
+    #   "none"           \u2014 default; no bootstrap; output unchanged.
+    #   "wild_bootstrap" \u2014 Rademacher Wild bootstrap on the residuals of a
     #                      forward-model NNLS fit at the called event
     #                      positions. Preserves the gRNA layout and design
-    #                      matrix (which is correct for our small N=5–10
+    #                      matrix (which is correct for our small N=5\u201310
     #                      regions) while resampling the per-region weight
     #                      noise. For each bootstrap draw, perturbed weights
     #                      are re-injected into long_data via the lfc field
     #                      (with t_stat = NA, weight_mode = "lfc_signed") and
     #                      the inner pipeline (zone detection + clustering +
     #                      filters) is re-run. Each original event is then
-    #                      matched to its nearest bootstrap event within 2σ,
+    #                      matched to its nearest bootstrap event within 2\u03c3,
     #                      and the matched-position distribution is
     #                      summarised as pos_stab_low/high (2.5/97.5%
     #                      quantiles), pos_stab_median, and
@@ -1370,14 +1741,14 @@ predict_binding_events_coverage_aware <- function(
     #                      n_bootstrap).
     position_stability = c("none", "wild_bootstrap"),
     # Number of Wild bootstrap draws when `position_stability` is enabled.
-    # 200 is a sensible default for 95% CI-style summaries; bump to 500–1000
+    # 200 is a sensible default for 95% CI-style summaries; bump to 500\u20131000
     # for tighter tails or stable-binders for a paper figure.
     n_bootstrap        = 200L
 ) {
   merge_position     <- match.arg(merge_position)
   position_stability <- match.arg(position_stability)
   motif_score_weight <- match.arg(motif_score_weight)
-  # Resolve NULL → kernel_sigma. Doing this in the body (not as a default
+  # Resolve NULL \u2192 kernel_sigma. Doing this in the body (not as a default
   # expression) keeps the dependence explicit and survives callers that
   # pass `max_grna_distance = NULL` intentionally.
   if (is.null(max_grna_distance)) max_grna_distance <- kernel_sigma
@@ -1389,33 +1760,33 @@ predict_binding_events_coverage_aware <- function(
     stringsAsFactors = FALSE
   )
 
-  # ── Wild bootstrap position stability (Myers benchmarking) ──────────────
-  # Defined as an inner closure so BOTH return paths in this function — the
-  # motif-less fallback and the motif-based zone branch — get the same column
+  # \u2500\u2500 Wild bootstrap position stability (Myers benchmarking) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  # Defined as an inner closure so BOTH return paths in this function \u2014 the
+  # motif-less fallback and the motif-based zone branch \u2014 get the same column
   # schema for `out`. Without this, no-motif TFs returned `ev` early without
   # `pos_stab_*`, while motif-anchored TFs got the columns, and rbind across
   # TFs in predict_all_binding_events failed with "numbers of columns of
   # arguments do not match".
   #
-  # See `position_stability` param docs above for the framing — these
+  # See `position_stability` param docs above for the framing \u2014 these
   # columns describe how robust each bubble's POSITION is to noise
   # perturbation, not a confidence interval on the TF's true binding
   # location. The procedure preserves the gRNA layout (design matrix) and
   # only resamples the per-region weight residual via Rademacher signs:
   #
-  #   1. Fit a_k ≥ 0 by NNLS so that  Σ_k a_k · G(pos_r - p_k; σ)  ≈  w_obs[r],
+  #   1. Fit a_k \u2265 0 by NNLS so that  \u03a3_k a_k \u00b7 G(pos_r - p_k; \u03c3)  \u2248  w_obs[r],
   #      where w_obs[r] is the per-region weight that build_caspex_signal()
   #      used (i.e. compute_region_weight() with the active weight_mode,
   #      clipped at 0). p_k are the called event positions in `out`.
-  #   2. Compute residuals  ε[r] = w_obs[r] − ŵ[r].
-  #   3. For b = 1…n_bootstrap, draw signs  s_b[r] ∈ {−1, +1}  i.i.d., set
-  #      perturbed weights  w_b[r] = max(ŵ[r] + s_b[r] · ε[r], 0),  inject
+  #   2. Compute residuals  \u03b5[r] = w_obs[r] \u2212 \u0175[r].
+  #   3. For b = 1\u2026n_bootstrap, draw signs  s_b[r] \u2208 {\u22121, +1}  i.i.d., set
+  #      perturbed weights  w_b[r] = max(\u0175[r] + s_b[r] \u00b7 \u03b5[r], 0),  inject
   #      them into a long_data clone via the lfc column with t_stat = NA,
   #      and recursively call this same function with weight_mode =
   #      "lfc_signed" (so build_caspex_signal recovers exactly w_b) and
   #      position_stability = "none" (recursion guard).
   #   4. For each original event, record the position of the nearest
-  #      bootstrap event within 2σ (no match → no contribution).
+  #      bootstrap event within 2\u03c3 (no match \u2192 no contribution).
   #   5. Append pos_stab_{low,high,median} (2.5 / 97.5 / 50% quantiles of
   #      matched positions) and bootstrap_survival_frac (= matched draws /
   #      n_bootstrap).
@@ -1493,7 +1864,7 @@ predict_binding_events_coverage_aware <- function(
         ),
         error = function(e) NULL)
       if (is.null(ev_b) || nrow(ev_b) == 0) next
-      # Match each original event to its nearest bootstrap event within 2σ.
+      # Match each original event to its nearest bootstrap event within 2\u03c3.
       # Allow many-to-one matching (we only need a position estimate per
       # original bubble; double-counting a shared bootstrap event is fine
       # because it's a per-event diagnostic).
@@ -1538,7 +1909,7 @@ predict_binding_events_coverage_aware <- function(
 
   # Labeling-opportunity map C(x). UNWEIGHTED: every gRNA contributes
   # regardless of its proteomic enrichment direction, because labeling is
-  # a physical property of the gRNA cut site — depleted gRNAs still emit
+  # a physical property of the gRNA cut site \u2014 depleted gRNAs still emit
   # biotin, they just don't capture proteins preferentially.
   cov_obj <- compute_coverage(pos_map, x_grid, kernel_sigma)
   c_grid  <- cov_obj$y
@@ -1547,7 +1918,7 @@ predict_binding_events_coverage_aware <- function(
   # gRNA positions (for diagnostics: distance_to_nearest_grna)
   pos_r <- sort(as.numeric(pos_map[!is.na(pos_map)]))
 
-  # Relative floor on the denominator — caps amplification. Setting
+  # Relative floor on the denominator \u2014 caps amplification. Setting
   # floor_val as a fraction of max(C) makes `cov_floor` dimensionless and
   # independent of how many gRNAs you tiled.
   floor_val <- cov_floor * max(c_grid)
@@ -1570,13 +1941,13 @@ predict_binding_events_coverage_aware <- function(
     setNames(pmax(0, pmin(1, motif_scores)), as.character(motif_hits))
   else NULL
 
-  # In-support mask: β is trusted only where RAW C(x) exceeds a multiple of
-  # the clamp floor. The clamp prevents β from going to infinity, but it
-  # does NOT prevent β from being evaluated in the low-denominator band
-  # just inside the clamp — where a tiny residual s(x) divided by a tiny
-  # c_grid(x) produces an inflated β that peak-finders and zone-finders
+  # In-support mask: \u03b2 is trusted only where RAW C(x) exceeds a multiple of
+  # the clamp floor. The clamp prevents \u03b2 from going to infinity, but it
+  # does NOT prevent \u03b2 from being evaluated in the low-denominator band
+  # just inside the clamp \u2014 where a tiny residual s(x) divided by a tiny
+  # c_grid(x) produces an inflated \u03b2 that peak-finders and zone-finders
   # happily mark as a hit at the west edge. Setting the support floor to
-  # `edge_guard_frac × max(C)` (default 0.25, i.e. 5× the default 0.05
+  # `edge_guard_frac \u00d7 max(C)` (default 0.25, i.e. 5\u00d7 the default 0.05
   # cov_floor) pushes the trust boundary well off the clamp transition so
   # the ramp lives in the masked-out zone and can't form a zone on its own.
   # `edge_guard_frac` is capped at no less than cov_floor (the clamp floor)
@@ -1584,15 +1955,15 @@ predict_binding_events_coverage_aware <- function(
   support_floor_val <- max(cov_floor, edge_guard_frac) * max(c_grid)
   support_mask      <- c_grid > support_floor_val
 
-  # ── Motif-less fallback ────────────────────────────────────────────────
-  # Peak detection on the RAW signal s(x) — identical in spirit to the
-  # default path. Previously this branch peak-picked on β(x) = s/max(C,floor),
+  # \u2500\u2500 Motif-less fallback \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  # Peak detection on the RAW signal s(x) \u2014 identical in spirit to the
+  # default path. Previously this branch peak-picked on \u03b2(x) = s/max(C,floor),
   # which tends to spike near the window edges: C(x) trails off fast at the
   # tiled-region boundaries, pmax(C, floor_val) clamps to floor_val, and any
   # tiny residual s there gets divided by a tiny denominator and amplified
   # into a "peak" at the grid edge. The support_mask helped but did not
-  # fully eliminate these artefacts — a real peak-finder still sees the
-  # upward slope of β ramping into the clamped zone. Peak-picking on s(x)
+  # fully eliminate these artefacts \u2014 a real peak-finder still sees the
+  # upward slope of \u03b2 ramping into the clamped zone. Peak-picking on s(x)
   # (which is already smoothed by the Gaussian kernel) gives the same
   # robust no-motif behaviour as the default path; we still zero out s
   # outside the in-support region so anything beyond the guide layout is
@@ -1621,7 +1992,7 @@ predict_binding_events_coverage_aware <- function(
     # Geometric safety net (see `max_grna_distance` param docs). In the
     # no-motif fallback, `support_mask` already zeroes s(x) outside the
     # edge_guard_frac band, so the hard distance cap is mostly redundant
-    # here — but we still apply it for consistency with the motif branch,
+    # here \u2014 but we still apply it for consistency with the motif branch,
     # and to keep behaviour deterministic if a caller disables
     # edge_guard_frac while leaving max_grna_distance set.
     if (is.finite(max_grna_distance)) {
@@ -1642,17 +2013,17 @@ predict_binding_events_coverage_aware <- function(
     return(add_diag(ev))
   }
 
-  # ── Motif-based: zone-based detection on β(x) ─────────────────────────
-  # Rationale: scoring motifs one-by-one against max(β_at_motifs) is brittle
-  # on slopes — a motif sitting on the shoulder of a strong peak can fall
-  # below threshold even when the local β is clearly elevated above floor.
+  # \u2500\u2500 Motif-based: zone-based detection on \u03b2(x) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  # Rationale: scoring motifs one-by-one against max(\u03b2_at_motifs) is brittle
+  # on slopes \u2014 a motif sitting on the shoulder of a strong peak can fall
+  # below threshold even when the local \u03b2 is clearly elevated above floor.
   # Biological question is "is this motif inside a plausible binding zone?",
-  # not "does this motif sit at a β peak?". So: find contiguous above-
-  # threshold intervals of β(x) on the grid, and emit EVERY motif inside
+  # not "does this motif sit at a \u03b2 peak?". So: find contiguous above-
+  # threshold intervals of \u03b2(x) on the grid, and emit EVERY motif inside
   # them. Zones with no motif still emit a single peak bubble so true
   # signal never goes uncalled.
   y_corr <- s_grid / pmax(c_grid, floor_val)
-  # Suppress β outside the in-support region — any β value produced by the
+  # Suppress \u03b2 outside the in-support region \u2014 any \u03b2 value produced by the
   # floor clamp in near-zero-coverage tails is not a real binding signal.
   y_corr[!support_mask] <- 0
   y_max  <- max(y_corr)
@@ -1680,17 +2051,17 @@ predict_binding_events_coverage_aware <- function(
     b <- x_grid[zone_e[zi]]
     in_zone <- motif_hits[motif_hits >= a & motif_hits <= b]
     if (length(in_zone) > 0) {
-      # Emit motifs inside the zone whose local β is at least
-      # `zone_peak_frac` × (zone's own peak β). Motifs on broad plateaus
-      # with near-peak β all pass (GATA6 R7-R6 ramp: β ≈ 0.85 · peak,
+      # Emit motifs inside the zone whose local \u03b2 is at least
+      # `zone_peak_frac` \u00d7 (zone's own peak \u03b2). Motifs on broad plateaus
+      # with near-peak \u03b2 all pass (GATA6 R7-R6 ramp: \u03b2 \u2248 0.85 \u00b7 peak,
       # passes); motifs on the low flanks of a sharp peak get filtered
-      # (HOXB6 plateau shoulders at β ≈ 0.3 · peak, drop).
+      # (HOXB6 plateau shoulders at \u03b2 \u2248 0.3 \u00b7 peak, drop).
       s_k <- approx(x_grid, s_grid, xout = in_zone, rule = 2)$y
       c_k <- approx(x_grid, c_grid, xout = in_zone, rule = 2)$y
       b_k <- s_k / pmax(c_k, floor_val)
       # Zone-local peak: use the grid max inside the zone, not just the
       # motif-position max, so we don't bias the reference when motifs
-      # happen to sit away from the true β crest.
+      # happen to sit away from the true \u03b2 crest.
       idxs <- zone_s[zi]:zone_e[zi]
       zone_peak_b <- max(y_corr[idxs])
       keep_zone <- which(b_k >= zone_peak_frac * zone_peak_b)
@@ -1699,7 +2070,7 @@ predict_binding_events_coverage_aware <- function(
         kept_w   <- b_k[keep_zone]
         # Optional PWM-score weighting: scale the emitted weight by a
         # function of the per-motif PWM score-fraction. Default "none"
-        # leaves weights as β(motif_pos), preserving legacy behaviour.
+        # leaves weights as \u03b2(motif_pos), preserving legacy behaviour.
         if (motif_score_weight != "none" && !is.null(score_lookup)) {
           sf <- score_lookup[as.character(kept_pos)]
           sf[is.na(sf)] <- 1     # missing-score motif -> no penalty
@@ -1713,7 +2084,7 @@ predict_binding_events_coverage_aware <- function(
         c_cand   <- c(c_cand,   c_k[keep_zone])
         mb_cand  <- c(mb_cand,  rep(TRUE, length(keep_zone)))
       } else {
-        # All motifs in this zone were below the zone-local threshold —
+        # All motifs in this zone were below the zone-local threshold \u2014
         # fall back to a single peak bubble so the zone isn't orphaned.
         pk <- idxs[which.max(y_corr[idxs])]
         pos_cand <- c(pos_cand, x_grid[pk])
@@ -1722,8 +2093,8 @@ predict_binding_events_coverage_aware <- function(
         mb_cand  <- c(mb_cand,  FALSE)
       }
     } else {
-      # No motif inside this zone — emit one bubble at the zone's peak so
-      # a real β peak without a JASPAR hit still gets surfaced.
+      # No motif inside this zone \u2014 emit one bubble at the zone's peak so
+      # a real \u03b2 peak without a JASPAR hit still gets surfaced.
       idxs <- zone_s[zi]:zone_e[zi]
       pk   <- idxs[which.max(y_corr[idxs])]
       pos_cand <- c(pos_cand, x_grid[pk])
@@ -1740,9 +2111,9 @@ predict_binding_events_coverage_aware <- function(
   # merged cluster is motif_based if ANY of its members was motif-based.
   # NOTE: `used` is indexed by position in `pos_cand`, and `ord` is a
   # permutation of pos_cand indices. We MUST skip on `used[ord[j]]`, not
-  # on `used[j]` — otherwise a candidate absorbed into an earlier cluster
+  # on `used[j]` \u2014 otherwise a candidate absorbed into an earlier cluster
   # can block an unrelated higher-weight candidate whose rank happens to
-  # coincide with the absorbed index (the R7–R6 miss was exactly this).
+  # coincide with the absorbed index (the R7\u2013R6 miss was exactly this).
   ord  <- order(w_cand, decreasing = TRUE)
   used <- rep(FALSE, length(pos_cand))
   events <- list()
@@ -1759,7 +2130,7 @@ predict_binding_events_coverage_aware <- function(
     #   cluster. For motif_based clusters, that's the strongest motif's
     #   exact bp coordinate, so the bubble sits on a motif tick. For a
     #   zone-fallback single-candidate cluster (no motif survived), the
-    #   top is the zone β-peak and argmax reduces to that peak.
+    #   top is the zone \u03b2-peak and argmax reduces to that peak.
     # - "centroid" : legacy amplitude-weighted mean position. Can land
     #   between 2-3 motifs that chained within merge_dist.
     top_in_cluster <- cluster_idx[which.max(w_cand[cluster_idx])]
@@ -1769,7 +2140,7 @@ predict_binding_events_coverage_aware <- function(
       sum(pos_cand[cluster_idx] * w_cand[cluster_idx]) / w_sum
     }
     d_nn   <- min(abs(p_avg - pos_r))
-    # Interpolated C(x) at the merged centroid — more faithful than the
+    # Interpolated C(x) at the merged centroid \u2014 more faithful than the
     # average of cluster members, which would be biased by the weights.
     c_loc  <- approx(x_grid, c_grid, xout = p_avg, rule = 2)$y
     events[[length(events) + 1]] <- data.frame(
@@ -1786,10 +2157,10 @@ predict_binding_events_coverage_aware <- function(
   out <- do.call(rbind, events)
   # Geometric safety net: drop events whose nearest gRNA is farther than
   # `max_grna_distance`. In the single-gRNA tail beyond the westernmost /
-  # easternmost guide, β = s/C is flat (same Gaussian cancels top and
+  # easternmost guide, \u03b2 = s/C is flat (same Gaussian cancels top and
   # bottom) and the zone detector can spray bubbles all the way to the
-  # edge_guard_frac mask. This cap clips those at a σ-scaled distance
-  # from the guide layout — complementary to edge_guard_frac, which is
+  # edge_guard_frac mask. This cap clips those at a \u03c3-scaled distance
+  # from the guide layout \u2014 complementary to edge_guard_frac, which is
   # relative to max(C) and doesn't automatically rescale when kernel_sigma
   # changes.
   if (is.finite(max_grna_distance)) {
@@ -1797,10 +2168,10 @@ predict_binding_events_coverage_aware <- function(
                drop = FALSE]
   }
   # Edge-gRNA dominance filter. For each candidate event position p, compute
-  # the per-gRNA Gaussian weight w_i(p) = exp(-0.5 · ((p - r_i)/σ)²) and the
-  # fractional contribution of each gRNA: f_i(p) = w_i(p) / Σ_j w_j(p). If
+  # the per-gRNA Gaussian weight w_i(p) = exp(-0.5 \u00b7 ((p - r_i)/\u03c3)\u00b2) and the
+  # fractional contribution of each gRNA: f_i(p) = w_i(p) / \u03a3_j w_j(p). If
   # EITHER the westernmost (min r_i) or easternmost (max r_i) guide has
-  # f_i(p) > edge_grna_weight_cap, drop the event — it's being inflated by
+  # f_i(p) > edge_grna_weight_cap, drop the event \u2014 it's being inflated by
   # a boundary guide's kernel tail even though it may sit inside the
   # support mask and within max_grna_distance of some interior guide.
   # Applies only in coverage-aware paths that actually defined such a cap;
@@ -1830,12 +2201,12 @@ predict_binding_events_coverage_aware <- function(
   if (nrow(out) == 0) return(empty)
   out <- out[order(out$weight, decreasing = TRUE), , drop = FALSE]
   # Top-N cap (readability backstop). Applied AFTER merging so merged
-  # centroids compete on their combined amplitude, not on per-motif β.
+  # centroids compete on their combined amplitude, not on per-motif \u03b2.
   if (is.finite(max_events_per_tf) && nrow(out) > max_events_per_tf) {
     out <- out[seq_len(max_events_per_tf), , drop = FALSE]
   }
 
-  # Schema-consistent diagnostics pass — same closure the no-motif
+  # Schema-consistent diagnostics pass \u2014 same closure the no-motif
   # branch uses. When position_stability is off this is a no-op; when
   # on it appends pos_stab_low/high/median + bootstrap_survival_frac.
   add_diag(out)
@@ -1956,7 +2327,7 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
     base_cols$local_coverage <- numeric(0)
     return(base_cols)
   }
-  # rbind across TFs — coverage-aware returns extra cols, smoothed doesn't.
+  # rbind across TFs \u2014 coverage-aware returns extra cols, smoothed doesn't.
   # Unify schema so the CSV always has the same columns regardless of which
   # branch was taken for each TF (motif-less fallback on coverage mode still
   # carries the extra cols because we tagged them in the fallback).
@@ -2011,12 +2382,12 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
                                         # Coverage-aware only. Wild bootstrap
                                         # position-stability diagnostic. See
                                         # predict_binding_events_coverage_aware()
-                                        # for the framing — when enabled, a
+                                        # for the framing \u2014 when enabled, a
                                         # "Position support" sub-track renders
                                         # below the event bubbles, plotting
                                         # the central 95% bootstrap range and
                                         # median for each event. Off by default
-                                        # because bootstrap is N×slower.
+                                        # because bootstrap is N\u00d7slower.
                                         position_stability = c("none", "wild_bootstrap"),
                                         n_bootstrap        = 200L,
                                         # ChIP-Atlas overlay: data.frame as returned
@@ -2061,15 +2432,15 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
       x_grid          = x_grid)
   rd      <- sig$region_data
   sig_max <- max(c(sig$y, rd$lfc, 1), na.rm = TRUE)
-  # Clip motif ticks to the gRNA-supported region (one kernel σ past the
+  # Clip motif ticks to the gRNA-supported region (one kernel \u03c3 past the
   # outermost guides on each side). Past that envelope, CasPEX has no
   # signal to pair with sequence-level motifs, so showing ticks there is
   # visual noise that invites misreading. Without this clip, the ggplot
   # panel auto-expands whenever the ChIP-Atlas band is drawn at the full
   # [-upstream, downstream] width, which makes far-upstream motif clusters
-  # (e.g. the NR2F1 cluster past -2000 on ATP7B where R7 ≈ -1900 is the
-  # westernmost guide) suddenly visible even though no events are — or
-  # ever could be — called in that region. The other mini-browser decks
+  # (e.g. the NR2F1 cluster past -2000 on ATP7B where R7 \u2248 -1900 is the
+  # westernmost guide) suddenly visible even though no events are \u2014 or
+  # ever could be \u2014 called in that region. The other mini-browser decks
   # (07/09/12) intentionally show the full motif window; this detail plot
   # scopes to what the detector can actually resolve.
   pos_r_detect <- sort(as.numeric(pos_map[!is.na(pos_map)]))
@@ -2124,7 +2495,7 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
     # Region labels (R1, R2, ...). Positive-logFC stems get the label
     # ABOVE the head (vjust = -0.9). Negative-logFC stems get the label
     # to the RIGHT side (vjust = 0.5 = vertically centred on the head;
-    # hjust = -0.3 = nudged right of the head) — this keeps the label
+    # hjust = -0.3 = nudged right of the head) \u2014 this keeps the label
     # out of the called-peak strip below the baseline, which previously
     # got cluttered when several depletion lollipops stacked their
     # labels into the same band.
@@ -2147,7 +2518,7 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
              ymin = track_bot, ymax = track_top,
              fill = "grey97", color = NA)
 
-  # JASPAR motif ticks — upper sub-lane of the called-peak track
+  # JASPAR motif ticks \u2014 upper sub-lane of the called-peak track
   if (length(motif_hits_in) > 0) {
     p <- p + geom_segment(data = data.frame(x = motif_hits_in),
                            aes(x = x, xend = x,
@@ -2155,9 +2526,9 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
                            color = COLS$mid, linewidth = 0.4, alpha = 0.7)
   }
 
-  # Predicted binding events — lower sub-lane. Position the circle on
+  # Predicted binding events \u2014 lower sub-lane. Position the circle on
   # the event_y baseline, with a dotted connector up to the signal value
-  # at that x so the viewer sees "this peak → this call".
+  # at that x so the viewer sees "this peak \u2192 this call".
   if (nrow(events) > 0) {
     ev <- events
     ev$y_base   <- event_y
@@ -2176,7 +2547,7 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
       # Bubble bp-coordinate label, centred INSIDE the bubble (vjust =
       # 0.5, hjust = 0.5). Black + bold so it stays legible on top of
       # the size-and-fill-coded circle regardless of motif_based status.
-      # Bare integer (no "bp" suffix) — keeps neighbouring labels short
+      # Bare integer (no "bp" suffix) \u2014 keeps neighbouring labels short
       # when events are closely spaced; x-axis title already declares
       # the unit.
       geom_text(data = ev,
@@ -2237,7 +2608,7 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
   # "logFC-weighted". Previously the label always read "logFC-weighted" even
   # when the curve was actually z-weighted (the default since the ATP7B-style
   # default switch) or t-weighted, which made magnitude reads of the curve
-  # confusing — e.g., a z-weighted Myers curve peaking at ~100 looked like
+  # confusing \u2014 e.g., a z-weighted Myers curve peaking at ~100 looked like
   # logFC=100 even though the per-region lfc stems on the same plot show 1-3.
   y_label <- switch(weight_mode,
     z          = "CasPEX signal (z-weighted, signed z from p-value)",
@@ -2256,7 +2627,7 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
     scale_size_continuous(range = c(3, 9), guide = "none") +
     scale_y_continuous(
       expand = expansion(mult = c(0.08, 0.08)),
-      # Hide negative ticks/labels — the "called peak" lane is a legend-like
+      # Hide negative ticks/labels \u2014 the "called peak" lane is a legend-like
       # strip, not a numeric reading
       breaks = function(lim) pretty(c(0, lim[2]))
     ) +
@@ -2526,7 +2897,7 @@ plot_motif_track <- function(spatial_df, motif_results, pos_map,
                       color = NA, alpha = 0.6)
   }
 
-  # Per-lane layout (genome-browser style — ribbon on top, motif ticks below):
+  # Per-lane layout (genome-browser style \u2014 ribbon on top, motif ticks below):
   #   [i-0.50 ------------------------ i+0.50]   lane extent
   #   [i-0.42 ... i-0.22]                        motif sub-lane (ticks BELOW)
   #   [i-0.15 ... i+0.45]                        enrichment ribbon (ABOVE ticks)
@@ -2561,7 +2932,7 @@ plot_motif_track <- function(spatial_df, motif_results, pos_map,
                      linetype = "solid")
     }
 
-    # JASPAR motif ticks — sub-lane BELOW the ribbon
+    # JASPAR motif ticks \u2014 sub-lane BELOW the ribbon
     hits <- motif_results[[tf]]$hits
     if (length(hits) > 0) {
       hits_in <- hits[hits >= -upstream & hits <= downstream]
@@ -2715,7 +3086,7 @@ plot_tf_track <- function(tfs, spatial_df, pos_map, promoter_info,
   chip_y0     <- -0.48   # ChIP-Atlas strip bottom
   chip_y1     <- -0.44   # ChIP-Atlas strip top
 
-  # Interval union helper — collapses overlapping peak intervals to a minimal
+  # Interval union helper \u2014 collapses overlapping peak intervals to a minimal
   # set of non-overlapping ones. Input is a data.frame with start_rel/end_rel
   # columns; output is a 2-column data.frame (xs, xe).
   .union_intervals <- function(df) {
@@ -2787,7 +3158,7 @@ plot_tf_track <- function(tfs, spatial_df, pos_map, promoter_info,
       }
     }
 
-    # ChIP-Atlas union-peak strip (compact — lanes are space-constrained here;
+    # ChIP-Atlas union-peak strip (compact \u2014 lanes are space-constrained here;
     # the full stacked-SRX view lives in Plot 10). Renders only when we were
     # handed a per-TF peak table; unions overlapping intervals across all
     # SRXs so the strip shows "where public ChIP-seq ever called a peak for
@@ -2912,19 +3283,19 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
                              top_shared   = 10,
                              top_specific = 10,
                              pval_thresh  = 0.05) {
-  # ── Three-deck partition ────────────────────────────────────────────────
+  # \u2500\u2500 Three-deck partition \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # Every TF in the motif-scan set lands in exactly one of:
-  #   1. common        — top-N by composite score (broadly strong);
+  #   1. common        \u2014 top-N by composite score (broadly strong);
   #                      rendered in decks 06/07.
-  #   2. shared-focal  — significant (p ≤ thr & lfc > 0) in ≥2 regions, not
+  #   2. shared-focal  \u2014 significant (p \u2264 thr & lfc > 0) in \u22652 regions, not
   #                      in common. Each TF is labelled with its full set
   #                      of significant regions (e.g. "R1+R5");
   #                      rendered in decks 11/12.
-  #   3. region-spec   — significant in exactly 1 region, not in common;
+  #   3. region-spec   \u2014 significant in exactly 1 region, not in common;
   #                      rendered in decks 08/09, one page per region.
   # The three buckets are pairwise disjoint by construction and enforced
   # by post-condition assertions at the end of this function.
-  # ────────────────────────────────────────────────────────────────────────
+  # \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 
   # (1) Common: top N by composite
   common_tfs <- head(as.character(spatial_df$protein), top_common)
@@ -2935,7 +3306,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
                     long_data$region %in% names(pos_map), ]
 
   # Build the full candidate table: one row per (significant TF, region).
-  # spec(p, R) = lfc_p,R − mean_{R'≠R}(lfc_p,R') captures focality.
+  # spec(p, R) = lfc_p,R \u2212 mean_{R'\u2260R}(lfc_p,R') captures focality.
   regions <- sort(unique(ld$region))
   cand_rows <- list()
   for (r in regions) {
@@ -2965,7 +3336,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 
   # Classify each TF by the number of regions in which it is significant.
   # This partitions the non-common candidate set into:
-  #   shared_candidates   (n_sig_regions ≥ 2)
+  #   shared_candidates   (n_sig_regions \u2265 2)
   #   specific_candidates (n_sig_regions == 1)
   tf_counts <- if (nrow(cand) > 0) table(cand$tf) else integer(0)
   shared_tfs_all    <- names(tf_counts)[tf_counts >= 2]
@@ -3038,7 +3409,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
   }
   attr(all_tfs, "region_tag") <- region_tag
 
-  # ── Post-conditions: three disjoint buckets, single-region specific ───
+  # \u2500\u2500 Post-conditions: three disjoint buckets, single-region specific \u2500\u2500\u2500
   .check_disjoint <- function(a, b, a_name, b_name) {
     x <- intersect(a, b)
     if (length(x) > 0)
@@ -3125,13 +3496,14 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param species Ensembl species token (default \code{"homo_sapiens"}).
 #' @param transcript TSS-anchor selection. \code{"canonical"} (default)
 #'   uses the Ensembl canonical transcript - deterministic across REST
-#'   calls. \code{"ENST..."} pins to a specific transcript ID (e.g.
-#'   Myers MYC P2: \code{"ENST00000377970"}). \code{NA} falls back to
+#'   calls. \code{"ENST..."} pins to a specific transcript ID, useful
+#'   when the experimentally targeted promoter is an alt-TSS rather
+#'   than the canonical transcript's TSS. \code{NA} falls back to
 #'   the legacy gene-level union boundary (subject to Ensembl annotation
 #'   drift; not recommended).
 #' @param upstream,downstream bp window around the TSS to fetch and
 #'   model. Defaults 2500 / 500 - widen \code{downstream} when guides
-#'   tile downstream of the canonical TSS (Mackenzie FOXP2 uses 200 / 2000).
+#'   tile downstream of the canonical TSS.
 #'
 #'
 #' @param pval_thresh Per-region p-value floor for a TF to count as
@@ -3257,6 +3629,16 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   regions is >= this value. Default 0 (no filter). Useful when input
 #'   p-values are unreliable; the two filters compose AND-style.
 #'
+#' @param motif_search_engine Which motif database to use for the per-TF
+#'   PWM lookup. \code{"jaspar"} (default) uses the JASPAR REST API;
+#'   \code{"hocomoco"} uses the HOCOMOCO MEME bundle (downloaded on first
+#'   use, cached on disk). Threshold semantics (\code{motif_thresh}) are
+#'   kept identical across engines.
+#' @param hocomoco_version HOCOMOCO release when
+#'   \code{motif_search_engine = "hocomoco"}: \code{"v12"} (default,
+#'   CORE bundle) or \code{"v11"} (full mono bundle). Ignored otherwise.
+#' @param hocomoco_species \code{"human"} (default) or \code{"mouse"} when
+#'   \code{motif_search_engine = "hocomoco"}. Ignored otherwise.
 #'
 #' @param save_plots Write the PDF deck to \code{out_dir} (default TRUE).
 #'   Set FALSE for a fast headless run that only computes the result list.
@@ -3290,8 +3672,8 @@ run_caspex <- function(
     data_files,
     # Optional gene-class universes used to flag rows in the loaded
     # long_data:
-    #   tf_universe  — e.g. read from TFLibrary.txt; sets `isTF`
-    #   epi_universe — e.g. read from EpiGenes_main.csv; sets `isEpi`
+    #   tf_universe  \u2014 e.g. read from TFLibrary.txt; sets `isTF`
+    #   epi_universe \u2014 e.g. read from EpiGenes_main.csv; sets `isEpi`
     # When NULL, falls back to a `TFDatabase`-style column in the input
     # files if present, else FALSE for everything.
     tf_universe   = NULL,
@@ -3304,12 +3686,12 @@ run_caspex <- function(
     # legacy gene-level start/end is the union over all annotated
     # transcripts and can drift between REST calls (uniform TSS-frame
     # shifts on the order of tens of bp).
-    #   "canonical" (default): Ensembl canonical transcript — deterministic
+    #   "canonical" (default): Ensembl canonical transcript \u2014 deterministic
     #                          and matches the promoter frame used in most
     #                          TF / ChIP studies.
     #   "ENST..."            : pin to a specific Ensembl transcript ID
     #                          (e.g. Myers 2018 MYC uses ENST00000377970
-    #                          for the P2 promoter — overrides "canonical").
+    #                          for the P2 promoter \u2014 overrides "canonical").
     #   NA                   : explicit legacy gene-level start/end. Subject
     #                          to Ensembl annotation drift; only use this
     #                          if you specifically need the union boundary.
@@ -3335,10 +3717,10 @@ run_caspex <- function(
     # controls whether it ALSO weights the per-motif amplitude.
     #   "none"   - default; legacy behaviour. Above-threshold motifs are
     #              treated equally (unit-amplitude basis on the smoothed-
-    #              s(x) NNLS path; raw β on the coverage-aware zone path).
+    #              s(x) NNLS path; raw \u03b2 on the coverage-aware zone path).
     #   "linear" - per-motif amplitude is scaled by score_frac in [0,1],
-    #              i.e. higher PWM score gets more amplitude per unit β
-    #              (NNLS path) or per unit β-readout (coverage-aware).
+    #              i.e. higher PWM score gets more amplitude per unit \u03b2
+    #              (NNLS path) or per unit \u03b2-readout (coverage-aware).
     #   "log"    - amplitude scaled by 2^(score_frac - 1), monotonic but
     #              compresses the difference (0.5x at threshold, 1.0x at
     #              consensus).
@@ -3351,15 +3733,15 @@ run_caspex <- function(
     merge_dist       = 100,
     cov_floor        = 0.05,
     # `edge_guard_frac` (coverage-aware only): fraction-of-max-coverage floor
-    # that defines the in-support region for β. Set well above `cov_floor`
-    # so β is not evaluated in the low-denominator transition band at the
+    # that defines the in-support region for \u03b2. Set well above `cov_floor`
+    # so \u03b2 is not evaluated in the low-denominator transition band at the
     # tiled-region edges (which would otherwise spawn spurious west-edge
-    # peaks / zones). Default 0.25 = 5× default cov_floor (raised from
-    # 0.15 when kernel_sigma went 250 → 300; wider kernel extends the
+    # peaks / zones). Default 0.25 = 5\u00d7 default cov_floor (raised from
+    # 0.15 when kernel_sigma went 250 \u2192 300; wider kernel extends the
     # single-gRNA tail and re-opened the edge artifact at 0.15).
     edge_guard_frac  = 0.25,
-    # Readability guards. `zone_peak_frac` = per-zone β floor
-    # (motifs below frac × zone_peak β are dropped; 0 disables).
+    # Readability guards. `zone_peak_frac` = per-zone \u03b2 floor
+    # (motifs below frac \u00d7 zone_peak \u03b2 are dropped; 0 disables).
     # `max_events_per_tf` = top-N cap applied after merging (Inf disables).
     zone_peak_frac    = 0.50,
     max_events_per_tf = 30,
@@ -3370,8 +3752,8 @@ run_caspex <- function(
     merge_position    = c("argmax", "centroid"),
     # `max_grna_distance` (coverage-aware only): hard geometric cap in bp
     # on how far a called event can sit from the nearest gRNA. NULL
-    # (default) resolves to `kernel_sigma` at runtime — i.e. events must
-    # be within one labeling σ of some guide. Inf disables. Complements
+    # (default) resolves to `kernel_sigma` at runtime \u2014 i.e. events must
+    # be within one labeling \u03c3 of some guide. Inf disables. Complements
     # `edge_guard_frac`: the relative-coverage mask does not auto-rescale
     # with kernel_sigma, this one does.
     max_grna_distance = NULL,
@@ -3379,16 +3761,16 @@ run_caspex <- function(
     # NULL to disable (default). Drops events where either boundary gRNA
     # (westernmost `min(pos_r)` or easternmost `max(pos_r)`) contributes
     # more than this fraction of the local Gaussian weight sum
-    # Σ_i exp(-0.5·((p - r_i)/σ)²). Suppresses "edge-bleed" events in the
+    # \u03a3_i exp(-0.5\u00b7((p - r_i)/\u03c3)\u00b2). Suppresses "edge-bleed" events in the
     # tail beyond the outermost guides where a single boundary guide can
-    # inflate the NNLS β at interior positions far from its own coordinate
+    # inflate the NNLS \u03b2 at interior positions far from its own coordinate
     # (seen on ATP7B at p=-1620 where R7 @ -1945 contributes ~37%).
     # Complements `max_grna_distance` (which is a pure geometric cap on
-    # position→nearest-guide): this one caps Gaussian weight-share.
+    # position\u2192nearest-guide): this one caps Gaussian weight-share.
     edge_grna_weight_cap = NULL,
     # `position_stability` (coverage-aware only): per-event diagnostic that
     # measures how robust each bubble's POSITION is to noise perturbation
-    # of the per-region weights — NOT a confidence interval on the TF's
+    # of the per-region weights \u2014 NOT a confidence interval on the TF's
     # true binding location. See `predict_binding_events_coverage_aware()`
     # for the full framing. "wild_bootstrap" runs a Rademacher Wild
     # bootstrap on the residuals of a forward-model NNLS fit at the called
@@ -3398,16 +3780,16 @@ run_caspex <- function(
     # detail panel renders a "Position support" sub-track between the event
     # bubbles and the ChIP-Atlas band.
     #
-    # Off by default because the bootstrap is N×slower and is currently
+    # Off by default because the bootstrap is N\u00d7slower and is currently
     # used as a benchmarking diagnostic on the Myers 2018 reanalysis only.
     position_stability   = c("none", "wild_bootstrap"),
     # Number of Wild bootstrap draws when `position_stability` is enabled.
     n_bootstrap          = 200L,
-    # Region-weight mode — applied to BOTH spatial model and signal building.
+    # Region-weight mode \u2014 applied to BOTH spatial model and signal building.
     # "z" (default) = signed z-score derived from the p-value, ALWAYS, even
     # when the input files carry a `t` column. This matches the ATP7B-era
     # CasPEX behaviour (where no t-stat was available) and keeps the
-    # smoothed-signal magnitude on a bounded scale (|z| ≲ 5) so build-
+    # smoothed-signal magnitude on a bounded scale (|z| \u2272 5) so build-
     # _caspex_signal()'s curve does not get visually dominated by a few
     # high-leverage replicates with small SE (moderated |t| can reach 15+).
     # Alternatives: "mod_t" (opt-in moderated-t from limma; falls back to
@@ -3453,7 +3835,7 @@ run_caspex <- function(
     # focuses the deck on TFs whose binding case is grounded in motif evidence
     # rather than enrichment alone. Useful on datasets like Myers 2018 where
     # the predicted TF list is dominated by long high-IC ZNFs that often
-    # return a handful (or zero) hits even at motif_thresh = 0.75 — those
+    # return a handful (or zero) hits even at motif_thresh = 0.75 \u2014 those
     # pages are mostly empty and crowd out the TFs with real motif support.
     # TFs without any JASPAR matrix (absent from result$motif_results) are
     # treated as having 0 hits and are dropped whenever this threshold > 0.
@@ -3464,23 +3846,23 @@ run_caspex <- function(
     # filter (all TFs surviving the motif-hit step are plotted). Useful when
     # the upstream p-values are unreliable or saturated (e.g. Myers 2018, where
     # P.Value is synthesized from a robust z-score and floored at 1e-300, so
-    # filtering on p loses its discriminating power) — a per-zone logFC cut
+    # filtering on p loses its discriminating power) \u2014 a per-zone logFC cut
     # gives an interpretable proximity-enrichment criterion that is independent
     # of the synthesized p-value pipeline. Composes AND-style with
     # deconv_min_motif_hits: both must pass.
     deconv_min_max_lfc    = 0,
     # `motif_scan_pool` controls which TFs the JASPAR motif scan covers.
-    #   "selected"    (default) — scan only the 44-TF select_motif_tfs union
+    #   "selected"    (default) \u2014 scan only the 44-TF select_motif_tfs union
     #                 (common + shared-focal + region-specific). Matches the
     #                 legacy pipeline; decks 06/07/08/09/11/12 stay narrative-
     #                 driven by spatial enrichment and Plot 10 can only filter
     #                 *within* that pre-narrowed set.
-    #   "spatial_all" — *additionally* scan every TF in the spatial model
+    #   "spatial_all" \u2014 *additionally* scan every TF in the spatial model
     #                 that did not make the select_motif_tfs cut (the
-    #                 ~spatial_df$protein \ motif_tfs complement, ≈140 TFs
+    #                 ~spatial_df$protein \ motif_tfs complement, \u2248140 TFs
     #                 on a typical Myers run). The extra scan results live
     #                 in result$motif_results_extra and are *only* consumed
-    #                 by Plot 10 when deconv_min_motif_hits > 0 — every other
+    #                 by Plot 10 when deconv_min_motif_hits > 0 \u2014 every other
     #                 deck still uses the unchanged motif_res so their layout
     #                 and TF roster do not shift. This lets Plot 10 surface
     #                 TFs with strong motif evidence at the locus that the
@@ -3489,10 +3871,28 @@ run_caspex <- function(
     # Cost: one extra fetch_jaspar_pwm() + scan_sequence() per non-selected
     # spatial TF; PWMs are cached on disk so subsequent runs are cheap.
     motif_scan_pool       = c("selected", "spatial_all"),
+    # `motif_search_engine`: which motif database backs the per-TF PWM
+    # lookup.
+    #   "jaspar"   (default) \u2014 JASPAR REST per-TF lookup. Backward
+    #                          compatible: runs that don't pass the
+    #                          argument behave exactly as before.
+    #   "hocomoco"           \u2014 HOCOMOCO MEME bundle (downloaded on first
+    #                          use, cached on disk via tools::R_user_dir).
+    #                          v12 CORE for human is the default; v11
+    #                          full mono is available via
+    #                          `hocomoco_version = "v11"`.
+    # Threshold semantics (motif_thresh) are kept identical across
+    # engines (same fractional log-odds cutoff against the matrix max);
+    # the resulting biological stringency differs because HOCOMOCO PWMs
+    # are typically higher-IC than the matching JASPAR matrices.
+    motif_search_engine   = c("jaspar", "hocomoco"),
+    # HOCOMOCO source selectors. Ignored when motif_search_engine == "jaspar".
+    hocomoco_version      = "v12",
+    hocomoco_species      = "human",
     save_plots    = TRUE,
     plot_width    = 10,
     plot_height   = 8,
-    # ── Optional downstream phases ────────────────────────────────────────
+    # \u2500\u2500 Optional downstream phases \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     # `extras` runs run_caspex_extras() after the main run completes,
     # writing the diagnostic plot pack to <out_dir>/extras/.
     # `epigenetic` runs run_caspex_epigenetic() after the main run
@@ -3509,9 +3909,13 @@ run_caspex <- function(
   if (is.null(signal_weight)) signal_weight <- weight_mode
   position_stability <- match.arg(position_stability)
   motif_score_weight <- match.arg(motif_score_weight)
+  motif_search_engine <- match.arg(motif_search_engine)
+  motif_source <- if (motif_search_engine == "jaspar") "JASPAR"
+                  else sprintf("HOCOMOCO %s (%s)", hocomoco_version,
+                               hocomoco_species)
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-  # ── Resolve TF / Epi universes from bundled databases when not user-supplied
+  # \u2500\u2500 Resolve TF / Epi universes from bundled databases when not user-supplied
   # Keeps the simple `run_caspex(gene, grnas, data_files)` call self-contained:
   # users who want to pin a custom universe still pass `tf_universe = ...` /
   # `epi_universe = ...` and override the defaults.
@@ -3542,7 +3946,7 @@ run_caspex <- function(
   message("=== CasPEX Binding Zone Predictor ===")
   message("Gene: ", gene, "  |  Regions: ", length(data_files))
 
-  # ── 1. Load enrichment data ───────────────────────────────────────────────
+  # \u2500\u2500 1. Load enrichment data \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   message("\nLoading enrichment data...")
   long_data <- load_region_data(data_files,
                                  tf_universe  = tf_universe,
@@ -3551,9 +3955,9 @@ run_caspex <- function(
   has_t     <- n_with_t > 0
   # Resolve the human-readable label for the active weight source. With the
   # default `weight_mode = "z"` we always derive a signed z from the p-value,
-  # regardless of whether the input carries a `t_stat` column — this is the
+  # regardless of whether the input carries a `t_stat` column \u2014 this is the
   # ATP7B-era approach and keeps the smoothed-signal magnitude bounded
-  # (typical |z| ≲ 5 vs. moderated |t| reaching 15+ for tight replicates,
+  # (typical |z| \u2272 5 vs. moderated |t| reaching 15+ for tight replicates,
   # which inflates build_caspex_signal()'s curve without changing event
   # ranks). "mod_t" remains opt-in.
   weight_src <- if (weight_mode == "z") {
@@ -3576,7 +3980,7 @@ run_caspex <- function(
           "t_stat populated: ", n_with_t, "/", nrow(long_data))
   message("  Weight source   : ", weight_src)
 
-  # ── 2. Gene + promoter sequence ───────────────────────────────────────────
+  # \u2500\u2500 2. Gene + promoter sequence \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   gene_info     <- lookup_gene(gene, species, transcript = transcript)
   # Pass species explicitly so the sequence-fetch URL always matches the
   # lookup species, even if someone later calls fetch_promoter_seq() with a
@@ -3584,7 +3988,7 @@ run_caspex <- function(
   promoter_info <- fetch_promoter_seq(gene_info, upstream, downstream,
                                        species = species)
 
-  # ── 3. Match gRNAs ────────────────────────────────────────────────────────
+  # \u2500\u2500 3. Match gRNAs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   pos_map <- match_all_grnas(grnas, promoter_info)
 
   n_matched <- sum(!is.na(pos_map))
@@ -3592,7 +3996,7 @@ run_caspex <- function(
     stop("At least 2 gRNAs must match the promoter sequence. ",
          "Got ", n_matched, ". Check sequences and gene name.")
 
-  # ── 4. Spatial model ─────────────────────────────────────────────────────
+  # \u2500\u2500 4. Spatial model \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   spatial_df <- run_spatial_model(long_data, pos_map,
                                    tfs_only    = tfs_only,
                                    pval_thresh = pval_thresh,
@@ -3601,7 +4005,7 @@ run_caspex <- function(
                                    weight_mode = weight_mode)
   message("  ", nrow(spatial_df), " TFs in spatial model")
 
-  # ── 5. JASPAR motif scan ──────────────────────────────────────────────────
+  # \u2500\u2500 5. Motif scan (JASPAR or HOCOMOCO, dispatched by motif_search_engine) \u2500
   if (is.null(motif_tfs))
     motif_tfs <- select_motif_tfs(long_data, spatial_df, pos_map,
                                   top_common   = n_common,
@@ -3609,14 +4013,17 @@ run_caspex <- function(
                                   top_specific = n_specific,
                                   pval_thresh  = pval_thresh)
 
-  motif_res <- run_motif_scan(motif_tfs, promoter_info, motif_thresh)
+  motif_res <- run_motif_scan(motif_tfs, promoter_info, motif_thresh,
+                              engine           = motif_search_engine,
+                              hocomoco_version = hocomoco_version,
+                              hocomoco_species = hocomoco_species)
 
-  # ── 5b. Optional augment-pool motif scan ──────────────────────────────────
+  # \u2500\u2500 5b. Optional augment-pool motif scan \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # When motif_scan_pool == "spatial_all", scan JASPAR for every TF in the
   # spatial model that did not make it into select_motif_tfs's 44-TF cut.
   # Results are kept in a SEPARATE list (`motif_res_extra`) so the existing
-  # decks (06/07, 08/09, 11/12) — which size lanes/PDF heights from
-  # length(motif_res) — are unaffected. Plot 10 will merge the two when
+  # decks (06/07, 08/09, 11/12) \u2014 which size lanes/PDF heights from
+  # length(motif_res) \u2014 are unaffected. Plot 10 will merge the two when
   # building its TF list (see deconv_min_motif_hits handling below).
   motif_scan_pool <- match.arg(motif_scan_pool)
   motif_res_extra <- list()
@@ -3626,11 +4033,14 @@ run_caspex <- function(
     if (length(extra_tfs) > 0) {
       message("\n  Augment-pool motif scan: ", length(extra_tfs),
               " additional TFs from spatial_df (motif_scan_pool='spatial_all')")
-      motif_res_extra <- run_motif_scan(extra_tfs, promoter_info, motif_thresh)
+      motif_res_extra <- run_motif_scan(extra_tfs, promoter_info, motif_thresh,
+                                        engine           = motif_search_engine,
+                                        hocomoco_version = hocomoco_version,
+                                        hocomoco_species = hocomoco_species)
     }
   }
 
-  # ── 5a. ChIP-Atlas peak overlay (optional) ────────────────────────────────
+  # \u2500\u2500 5a. ChIP-Atlas peak overlay (optional) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # Pulls public ChIP-seq peaks for every motif-scanned TF from ChIP-Atlas,
   # windowed to the same promoter region. Used as a supplementary validation
   # track in plots 06/07, 08/09, 11/12 (union peak row per TF) and 10
@@ -3656,7 +4066,7 @@ run_caspex <- function(
     }
   }
 
-  # ── 5b. Motif-constrained binding deconvolution ──────────────────────────
+  # \u2500\u2500 5b. Motif-constrained binding deconvolution \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # When motif_scan_pool = "spatial_all", deconvolve the augment-pool TFs
   # into `binding_events` too -- so every downstream diagnostic (A5 co-
   # occurrence, B2 sigma sweep, D2 cov_floor sweep, A6 ranked events, B3
@@ -3704,14 +4114,14 @@ run_caspex <- function(
   message("  Total predicted events: ", nrow(binding_events),
           "  (across ", length(unique(binding_events$tf)), " TFs)")
 
-  # ── 6. Plots ──────────────────────────────────────────────────────────────
+  # \u2500\u2500 6. Plots \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   message("\nGenerating plots...")
 
   p_grna    <- plot_grna_positions(pos_map, gene_info, upstream, downstream)
   p_heat    <- plot_heatmap(long_data, spatial_df, pos_map, top_n = min(30, nrow(spatial_df)))
   p_gc      <- plot_gc_track(promoter_info)
 
-  # ── Deck-provenance lookup (used for tagging binding_events $deck below) ──
+  # \u2500\u2500 Deck-provenance lookup (used for tagging binding_events $deck below) \u2500\u2500
   common_tfs   <- attr(motif_tfs, "common")
   shared_tfs   <- attr(motif_tfs, "shared")
   shared_tag   <- attr(motif_tfs, "shared_tag")
@@ -3743,7 +4153,7 @@ run_caspex <- function(
   if (save_plots) {
     # Plots from earlier development (02_spatial_track, 05_motif_overlay,
     # 06/07_track_common*, 08/09_track_region_specific*, 11/12_track_shared*,
-    # and the 00_summary composite) have been retired — they were diagnostic
+    # and the 00_summary composite) have been retired \u2014 they were diagnostic
     # artefacts that didn't pull their weight in the final figure set. Only
     # the load-bearing outputs are written: gRNA layout, per-region heatmap,
     # GC content, the binding-deconvolution deck, and the epigenetic deck
@@ -3755,7 +4165,7 @@ run_caspex <- function(
     ggsave(file.path(out_dir, "gc_content.pdf"),
            p_gc, width = plot_width, height = 3)
 
-    # ── Binding deconvolution detail plots ─
+    # \u2500\u2500 Binding deconvolution detail plots \u2500
     # Apply to *all* plotted TFs (the full motif_tfs set = common + region-specific),
     # not just the top-N by event weight. TFs with zero events are skipped so the
     # deck stays meaningful. Order: by total predicted event weight desc, then
@@ -3770,7 +4180,7 @@ run_caspex <- function(
       # Base pool: the 44-TF select_motif_tfs union (legacy behaviour).
       all_plot_tfs <- as.character(motif_tfs)
 
-      # Augment branch — only meaningful when both (a) the user opted into
+      # Augment branch \u2014 only meaningful when both (a) the user opted into
       # the wider scan via motif_scan_pool='spatial_all' AND (b) a motif-hit
       # threshold was requested. With threshold = 0 the augmented pool would
       # add 100+ pages (every spatial TF that happens to have a PWM, even
@@ -3798,21 +4208,21 @@ run_caspex <- function(
         all_plot_tfs <- unique(c(all_plot_tfs, extra_pass))
       }
 
-      # Optional motif-hit filter — keep TFs whose JASPAR PWM scan returned at
+      # Optional motif-hit filter \u2014 keep TFs whose JASPAR PWM scan returned at
       # least `deconv_min_motif_hits` hits in the promoter window. Default 0
       # is a no-op.
       #
       # IMPORTANT semantics: a TF that fetch_jaspar_pwm() couldn't resolve
       # (no JASPAR matrix in either the user-given alias or the species/
       # paralogue lookup) is *exempt* from this filter and kept. Such TFs
-      # are common among CasPEX hits on Myers 2018 MYC — chromatin-associated
+      # are common among CasPEX hits on Myers 2018 MYC \u2014 chromatin-associated
       # proteins (NONO, MTA1, SSRP1, GATAD2A/B, etc.) that don't have direct
       # sequence-specific DBDs and therefore aren't in JASPAR at all. We can
       # only fairly penalise a TF for "weak motif evidence" if it has a PWM
       # in the first place; without one, it falls through to the peak-
       # detection branch (already wired in build_caspex_signal()) and Plot 10
       # still shows its spatial deconvolution + ChIP-Atlas peak track. This
-      # asymmetry only affects the original motif_tfs pool — the augment-pool
+      # asymmetry only affects the original motif_tfs pool \u2014 the augment-pool
       # branch above can only add TFs that came through run_motif_scan
       # successfully (i.e., already have a PWM with >= threshold hits).
       #
@@ -3833,7 +4243,7 @@ run_caspex <- function(
             NA_integer_
           }
         }, integer(1))
-        # Keep: (a) TFs with no PWM in JASPAR (exempt — peak-detection mode);
+        # Keep: (a) TFs with no PWM in JASPAR (exempt \u2014 peak-detection mode);
         #       (b) TFs with a PWM and >= threshold hits.
         # Drop: TFs with a PWM but < threshold hits.
         keep <- is.na(hit_count) | hit_count >= deconv_min_motif_hits
@@ -3850,7 +4260,7 @@ run_caspex <- function(
         all_plot_tfs <- all_plot_tfs[keep]
       }
 
-      # Optional per-zone logFC floor — keep only TFs whose maximum per-region
+      # Optional per-zone logFC floor \u2014 keep only TFs whose maximum per-region
       # logFC across the matched regions (those in pos_map) is >= the threshold.
       # Composes AND-style with the motif-hit filter above. Useful when input
       # p-values are unreliable (saturated, synthesized, etc.) and a raw
@@ -3878,24 +4288,24 @@ run_caspex <- function(
       # Order is computed in two pools so augment-mode TFs don't get an
       # alphabetical-tail page slot they don't deserve:
       #
-      #   Pool 1 — original motif_tfs (the select_motif_tfs cut, ~44 on
+      #   Pool 1 \u2014 original motif_tfs (the select_motif_tfs cut, ~44 on
       #     Myers/hTERT). Sorted by total predicted-event weight desc using
       #     `binding_events`; motif_tfs without any events fall to the
       #     alphabetical tail of pool 1 (legacy behaviour).
       #
-      #   Pool 2 — augment-pool TFs (those added via
+      #   Pool 2 \u2014 augment-pool TFs (those added via
       #     motif_scan_pool='spatial_all' that were NOT in motif_tfs).
       #     Sorted among themselves by JASPAR motif-hit count desc, with
       #     name asc as tiebreaker. Rationale: predict_all_binding_events
       #     only ran on motif_tfs, so augment-pool TFs aren't in
-      #     binding_events and a true summed-β order across the whole deck
+      #     binding_events and a true summed-\u03b2 order across the whole deck
       #     would require on-the-fly event computation. Ordering by motif
-      #     evidence is the cheap, honest tiebreaker for this second pool —
+      #     evidence is the cheap, honest tiebreaker for this second pool \u2014
       #     "more JASPAR hits in the window" is a fair priority signal when
       #     we can't compare event totals directly.
       #
-      # The deck therefore reads: best motif_tfs by event weight → motif_tfs
-      # with no events (alpha) → augment-pool TFs by motif-hit count.
+      # The deck therefore reads: best motif_tfs by event weight \u2192 motif_tfs
+      # with no events (alpha) \u2192 augment-pool TFs by motif-hit count.
       if (length(all_plot_tfs) == 0) {
         detail_tfs <- character(0)
       } else {
@@ -3940,12 +4350,12 @@ run_caspex <- function(
                 ", deconv_min_max_lfc = ", deconv_min_max_lfc,
                 ") \u2014 skipping binding_deconvolution.pdf")
       } else {
-        # Augment-pool ChIP-Atlas top-up — survivors that weren't in the
+        # Augment-pool ChIP-Atlas top-up \u2014 survivors that weren't in the
         # original 44 motif_tfs haven't had their ChIP-Atlas peaks fetched
         # yet (run_chipatlas_scan above only ran on motif_tfs). Without
         # this top-up, augment-pool pages would render in Plot 10 missing
         # the ChIP-Atlas lane while their motif_tfs counterparts still
-        # have it — silently dropping public-peak validation evidence.
+        # have it \u2014 silently dropping public-peak validation evidence.
         # Done AFTER all filters have collapsed all_plot_tfs -> detail_tfs
         # so we only spend ChIP-Atlas API/cache I/O on the TFs that will
         # actually be drawn. No-op when chipatlas=FALSE or the chipatlas
@@ -3986,14 +4396,14 @@ run_caspex <- function(
         }
 
         detail_plots <- lapply(detail_tfs, function(tf) {
-          # motif_res_for_deck = motif_res ∪ motif_res_extra (see filter block
+          # motif_res_for_deck = motif_res \u222a motif_res_extra (see filter block
           # above). With motif_scan_pool='selected' it equals motif_res, so
           # this is identical to the legacy path; with 'spatial_all' it lets
           # newly-augmented TFs render with their actual motif hits instead of
           # falling through to the empty integer(0) branch.
           hits <- if (tf %in% names(motif_res_for_deck))
             motif_res_for_deck[[tf]]$hits else integer(0)
-          # Per-motif PWM scores parallel to `hits` — must be threaded
+          # Per-motif PWM scores parallel to `hits` \u2014 must be threaded
           # through so the deck plot's internal predict_*() rerun applies
           # the same motif_score_weight as the parent run. Without this,
           # the deck always rendered the "none" version even for runs
@@ -4040,7 +4450,7 @@ run_caspex <- function(
     message("\nPlots saved to: ", normalizePath(out_dir))
   }
 
-  # ── 7. Write results tables ───────────────────────────────────────────────
+  # \u2500\u2500 7. Write results tables \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   csv_path <- file.path(out_dir, paste0(gene, "_spatial_predictions.csv"))
   write.csv(spatial_df, csv_path, row.names = FALSE)
 
@@ -4051,10 +4461,10 @@ run_caspex <- function(
     binding_events$min_weight_frac <- min_weight_frac
 
     # Provenance: which selection deck did this TF come from?
-    #   "common"               — top-composite across all regions (deck 06/07)
-    #   "shared:R1+R5"         — significant in >=2 regions   (deck 11/12)
-    #   "region-specific:R3"   — region-focal in R3           (deck 08/09)
-    #   "augment-pool"         — TF not in any select_motif_tfs bucket but
+    #   "common"               \u2014 top-composite across all regions (deck 06/07)
+    #   "shared:R1+R5"         \u2014 significant in >=2 regions   (deck 11/12)
+    #   "region-specific:R3"   \u2014 region-focal in R3           (deck 08/09)
+    #   "augment-pool"         \u2014 TF not in any select_motif_tfs bucket but
     #                            picked up via motif_scan_pool='spatial_all'
     #                            (its events live in binding_events because
     #                            of the union above; surfaces on Plot 10
@@ -4089,7 +4499,7 @@ run_caspex <- function(
   })
 
   message("Results saved to: ", csv_path)
-  # Final reminder of the weight source — visible even if the earlier message
+  # Final reminder of the weight source \u2014 visible even if the earlier message
   # scrolled out of view.
   message("\n--- Run summary --------------------------------------------------")
   message(" Weight mode      : ", weight_mode)
@@ -4136,7 +4546,14 @@ run_caspex <- function(
     # motif_results stays unchanged.
     motif_results_extra = motif_res_extra,
     motif_scan_pool     = motif_scan_pool,
-    # The binding-deconvolution deck (binding_deconvolution.pdf) TF roster — every
+    # Which motif database backed this run. "JASPAR" for the default REST path,
+    # "HOCOMOCO v12 (human)" (or similar) when motif_search_engine="hocomoco".
+    # Downstream plots / Methods can read this to label figures truthfully.
+    motif_source        = motif_source,
+    motif_search_engine = motif_search_engine,
+    hocomoco_version    = hocomoco_version,
+    hocomoco_species    = hocomoco_species,
+    # The binding-deconvolution deck (binding_deconvolution.pdf) TF roster \u2014 every
     # TF that landed on a per-TF detail page after applying
     # `deconv_min_motif_hits` and `deconv_min_max_lfc`. Exposed on the
     # result so downstream consumers (notably the A5 TF co-occurrence
@@ -4147,8 +4564,8 @@ run_caspex <- function(
     binding_events = binding_events,
     weight_mode    = weight_mode,
     weight_source  = weight_src,
-    # Mode bookkeeping — lets caspex_extras.R auto-detect which analytical
-    # path produced this result and rerun its jackknife / σ sweep / one-pagers
+    # Mode bookkeeping \u2014 lets caspex_extras.R auto-detect which analytical
+    # path produced this result and rerun its jackknife / \u03c3 sweep / one-pagers
     # under the matching mode. Without these fields the extras would silently
     # run in default-mode NNLS even when `result` came from a coverage-aware
     # run, and would disagree with the events in `binding_events`.
@@ -4156,14 +4573,14 @@ run_caspex <- function(
     edge_guard_frac  = edge_guard_frac,
     kernel_sigma     = kernel_sigma,
     # Window that the run actually used (TSS-relative bp). Stored so
-    # downstream diagnostics — notably plot_coverage_stack / D3 — can
+    # downstream diagnostics \u2014 notably plot_coverage_stack / D3 \u2014 can
     # rebuild the correct x_grid instead of falling back to its old
     # hardcoded seq(-2500, 500, 5) which sits in the wrong place for any
     # promoter where guides land outside that range (e.g. Mackenzie FOXP2
     # has guides at +973..+1188, well past the legacy +500 boundary).
     upstream         = upstream,
     downstream       = downstream,
-    # Wild bootstrap diagnostic — bookkeeping so callers / extras can detect
+    # Wild bootstrap diagnostic \u2014 bookkeeping so callers / extras can detect
     # whether the position_stability columns were generated for this run.
     position_stability = position_stability,
     n_bootstrap        = n_bootstrap,
@@ -4175,7 +4592,7 @@ run_caspex <- function(
     # the windowed peak tables without re-hitting the network.
     chipatlas_peaks       = chipatlas_res,
     chipatlas_threshold   = if (isTRUE(chipatlas)) chipatlas_threshold else NULL,
-    # Output directory the run wrote to — attached so downstream callers
+    # Output directory the run wrote to \u2014 attached so downstream callers
     # can derive sibling paths like file.path(res$out_dir, "extras")
     # without re-threading the original argument through their scripts.
     out_dir         = out_dir,
@@ -4184,7 +4601,7 @@ run_caspex <- function(
                  gc   = p_gc)
   )
 
-  # ── Optional downstream phases ──────────────────────────────────────────
+  # \u2500\u2500 Optional downstream phases \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (isTRUE(extras)) {
     message("\n=== Running diagnostic extras (extras = TRUE) ===")
     result$extras_result <- tryCatch(
@@ -4251,7 +4668,14 @@ inspect_tf <- function(result, tf_name) {
 #' @param threshold_frac (see function body).
 #' @export
 rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
-  run_motif_scan(tf_names, result$promoter_info, threshold_frac)
+  # Honour whichever motif backend the result was originally built with so
+  # the rescanned hits live in the same coordinate / score-frac space as
+  # result$motif_results. Falls back to JASPAR for legacy result objects
+  # that pre-date the motif_search_engine field.
+  run_motif_scan(tf_names, result$promoter_info, threshold_frac,
+                 engine           = result$motif_search_engine %||% "jaspar",
+                 hocomoco_version = result$hocomoco_version    %||% "v12",
+                 hocomoco_species = result$hocomoco_species    %||% "human")
 }
 
 #' Audit which Ensembl transcript best matches your sgRNA layout
@@ -4266,11 +4690,11 @@ rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
 #'
 #' Use BEFORE picking the \code{transcript} argument for
 #' \code{\link{run_caspex}}, since alt-promoters of the same gene can
-#' sit hundreds of kb apart (e.g. FOXP2's HEK293 "active TSS1" is
-#' ~328 kb upstream of the canonical FOXP2-201 TSS, so a run anchored
-#' on the canonical transcript would not find Mackenzie's sgRNAs at all).
+#' sit hundreds of kb apart from the canonical transcript TSS — a run
+#' anchored on the canonical TSS would fail to find sgRNAs tiling a
+#' distal alt-promoter.
 #'
-#' @param gene HGNC symbol (e.g. \code{"FOXP2"}, \code{"ABCB1"}).
+#' @param gene HGNC symbol.
 #' @param manifest_path Path to the folder containing the sgRNA
 #'   manifest. Resolved relative to the current working directory if
 #'   not absolute. Default \code{"inputs"}.
@@ -4298,10 +4722,10 @@ rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
 #'   \code{n_matched} descending.
 #' @examples
 #' \dontrun{
-#' # Use the bundled FOXP2 example data
+#' # Use the bundled example dataset
 #' inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
 #'                           package = "GLproxScape")
-#' df <- check_transcripts(gene = "FOXP2", manifest_path = inputs_dir)
+#' df <- check_transcripts(gene = "<GENE_SYMBOL>", manifest_path = inputs_dir)
 #' head(df, 5)
 #' }
 #' @export
@@ -4448,4 +4872,4 @@ check_transcripts <- function(gene,
 # package-load side effects that R CMD check flags. Removed; usage lives
 # in ?GLproxScape and the README. To re-add a startup banner, define a
 # `.onAttach <- function(libname, pkgname) packageStartupMessage(...)`
-# in this file — that's the package-correct hook.)
+# in this file \u2014 that's the package-correct hook.)

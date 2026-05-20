@@ -51,6 +51,9 @@ run_caspex(
   deconv_min_motif_hits = 0,
   deconv_min_max_lfc = 0,
   motif_scan_pool = c("selected", "spatial_all"),
+  motif_search_engine = c("jaspar", "hocomoco"),
+  hocomoco_version = "v12",
+  hocomoco_species = "human",
   save_plots = TRUE,
   plot_width = 10,
   plot_height = 8,
@@ -91,14 +94,15 @@ land here.}
 
 \item{transcript}{TSS-anchor selection. \code{"canonical"} (default)
 uses the Ensembl canonical transcript - deterministic across REST
-calls. \code{"ENST..."} pins to a specific transcript ID (e.g.
-Myers MYC P2: \code{"ENST00000377970"}). \code{NA} falls back to
+calls. \code{"ENST..."} pins to a specific transcript ID, useful
+when the experimentally targeted promoter is an alt-TSS rather
+than the canonical transcript's TSS. \code{NA} falls back to
 the legacy gene-level union boundary (subject to Ensembl annotation
 drift; not recommended).}
 
 \item{upstream, downstream}{bp window around the TSS to fetch and
 model. Defaults 2500 / 500 - widen \code{downstream} when guides
-tile downstream of the canonical TSS (Mackenzie FOXP2 uses 200 / 2000).}
+tile downstream of the canonical TSS.}
 
 \item{pval_thresh}{Per-region p-value floor for a TF to count as
 significant in that region (default 0.05).}
@@ -244,6 +248,19 @@ additionally scans every TF in the spatial model that didn't make
 that cut; the extra results live in \code{result$motif_results_extra}
 and are consumed by the deconvolution deck when
 \code{deconv_min_motif_hits > 0}.}
+
+\item{motif_search_engine}{Which motif database to use for the per-TF
+PWM lookup. \code{"jaspar"} (default) uses the JASPAR REST API;
+\code{"hocomoco"} uses the HOCOMOCO MEME bundle (downloaded on first
+use, cached on disk). Threshold semantics (\code{motif_thresh}) are
+kept identical across engines.}
+
+\item{hocomoco_version}{HOCOMOCO release when
+\code{motif_search_engine = "hocomoco"}: \code{"v12"} (default,
+CORE bundle) or \code{"v11"} (full mono bundle). Ignored otherwise.}
+
+\item{hocomoco_species}{\code{"human"} (default) or \code{"mouse"} when
+\code{motif_search_engine = "hocomoco"}. Ignored otherwise.}
 
 \item{save_plots}{Write the PDF deck to \code{out_dir} (default TRUE).
 Set FALSE for a fast headless run that only computes the result list.}

@@ -1,5 +1,5 @@
 # =============================================================================
-# caspex_chipatlas.R — ChIP-Atlas peak backend for CasPEX
+# caspex_chipatlas.R \u2014 ChIP-Atlas peak backend for CasPEX
 # -----------------------------------------------------------------------------
 # Pulls public ChIP-seq peak calls from ChIP-Atlas (chip-atlas.dbcls.jp) and
 # exposes them as a supplementary track beneath the predicted-event bubbles in
@@ -53,8 +53,8 @@
 download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
   fpath <- file.path(.chipatlas_cache_dir(), "experimentList.tab")
   # Sanity check existing cache. ChIP-Atlas experimentList.tab is ~300+ MB and
-  # each line starts with an experiment accession — SRX (SRA), DRX (DDBJ), or
-  # ERX (ENA) — followed by a tab. A previous failed download could leave an
+  # each line starts with an experiment accession \u2014 SRX (SRA), DRX (DDBJ), or
+  # ERX (ENA) \u2014 followed by a tab. A previous failed download could leave an
   # HTML stub in the cache; we reject anything that doesn't match the
   # expected pattern.
   looks_like_exp_list <- function(first_line) {
@@ -265,7 +265,7 @@ download_chipatlas_srx_bed <- function(srx, genome = "hg38", threshold = "05",
   return(NULL)
 }
 
-# Per-SRX BEDs are narrowPeak-style (BED8+) — observed first line:
+# Per-SRX BEDs are narrowPeak-style (BED8+) \u2014 observed first line:
 #   chr1 10018 10209 SRX11664714.05_peak_1 416 . 20.20613 47.189
 # i.e. col4 is peak name (text), col5 is score (integer), col7 is signalValue.
 # We only need chr/start/end for window overlap; optional score goes into
@@ -397,7 +397,7 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
   # Cap selection logic:
   #   - Standard TF: take the newest `max_experiments` SRX.
   #   - Special-interest TF, special_interest_cap = NULL: scan ALL SRX
-  #     (could be 2000+ for CTCF — slow on first run, free thereafter).
+  #     (could be 2000+ for CTCF \u2014 slow on first run, free thereafter).
   #   - Special-interest TF, special_interest_cap = N: take newest N SRX.
   #     Useful middle-ground (e.g. 250 covers most cell-type diversity for
   #     well-studied TFs without a full 2000-BED download).
@@ -555,7 +555,7 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
   norm <- function(x) gsub("[^A-Z0-9]", "", toupper(as.character(x)))
   ct_norm <- norm(cell_type_field)
   tg_norm <- norm(target)
-  # Bidirectional substring: target ⊆ field OR field ⊆ target. Skips empty
+  # Bidirectional substring: target \u2286 field OR field \u2286 target. Skips empty
   # field strings (some ChIP-Atlas rows have no cell_type recorded).
   ok_field <- nzchar(ct_norm)
   matched <- rep(FALSE, length(cell_type_field))
@@ -649,9 +649,9 @@ fetch_histone_peaks_for_locus <- function(
   matched_peaks <- vector("list", length(marks)); names(matched_peaks) <- marks
   all_peaks     <- vector("list", length(marks)); names(all_peaks)     <- marks
   # Two counts per mark per bucket:
-  #   `n_srx_*`         = effective (post-cap) — what the union bar shows
-  #   `n_srx_*_total`   = available (pre-cap)  — total in ChIP-Atlas
-  # The plot label uses the effective count so the (n=…) annotation
+  #   `n_srx_*`         = effective (post-cap) \u2014 what the union bar shows
+  #   `n_srx_*_total`   = available (pre-cap)  \u2014 total in ChIP-Atlas
+  # The plot label uses the effective count so the (n=\u2026) annotation
   # matches what the bar represents; the console message shows both for
   # diagnostic purposes.
   n_srx_matched       <- setNames(integer(length(marks)), marks)
@@ -669,9 +669,9 @@ fetch_histone_peaks_for_locus <- function(
       next
     }
 
-    # ── Cell-type-matched bucket ────────────────────────────────────────
+    # \u2500\u2500 Cell-type-matched bucket \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     # Match on BOTH cell_type AND cell_type_class because ChIP-Atlas
-    # submitters fill these inconsistently — some put "HEK293" in
+    # submitters fill these inconsistently \u2014 some put "HEK293" in
     # cell_type and "Embryonic Kidney" in cell_type_class, others put the
     # specific line label in cell_type_class. A row matches the user's
     # target if either field passes the bidirectional substring test.
@@ -729,7 +729,7 @@ fetch_histone_peaks_for_locus <- function(
         threshold = threshold, quiet = quiet)
     }
 
-    # ── All-cell-types bucket ───────────────────────────────────────────
+    # \u2500\u2500 All-cell-types bucket \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     n_srx_all_total[mark] <- length(all_srx)
     all_srx_capped  <- if (length(all_srx) > max_experiments_all)
                          all_srx[seq_len(max_experiments_all)]
@@ -751,11 +751,11 @@ fetch_histone_peaks_for_locus <- function(
 
   list(matched              = matched_peaks,
        all                  = all_peaks,
-       # Effective (post-cap) counts — what the bar union represents
+       # Effective (post-cap) counts \u2014 what the bar union represents
        # and what plot_histone_marks_locus puts in the row label.
        n_srx_matched        = n_srx_matched,
        n_srx_all            = n_srx_all,
-       # Available (pre-cap) counts — total SRX in ChIP-Atlas for the
+       # Available (pre-cap) counts \u2014 total SRX in ChIP-Atlas for the
        # mark in this cell-type filter; useful for downstream summary
        # and for the console diagnostic.
        n_srx_matched_total  = n_srx_matched_total,

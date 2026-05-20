@@ -7,9 +7,9 @@
 #
 #   * No motif scanning, no per-motif NNLS, no motif anchoring.
 #   * Bubble-style point calls are replaced with horizontal "binding zones"
-#     (contiguous bp ranges where β(x) > zone_frac · max(β)). This honestly
-#     represents what the proximity-labelling kernel resolves at σ = 300 bp
-#     for spreading marks (PRC2, BRD4, KDM domains, etc.) — a domain, not a
+#     (contiguous bp ranges where \u03b2(x) > zone_frac \u00b7 max(\u03b2)). This honestly
+#     represents what the proximity-labelling kernel resolves at \u03c3 = 300 bp
+#     for spreading marks (PRC2, BRD4, KDM domains, etc.) \u2014 a domain, not a
 #     position. Compare to plot_binding_deconvolution()'s point-bubble lane.
 #   * ChIP-Atlas validation is the primary lane (not supplementary), since
 #     for chromatin factors public ChIP-seq is the directly comparable
@@ -22,7 +22,7 @@
 #
 # Sourced explicitly from runner scripts (e.g. myers_2018_reanalysis/1-myers.R)
 # alongside the other caspex_*.R modules. Not auto-loaded by caspex_analysis.R
-# — keeps the TF deck path independent of the epigenetic deck path.
+# \u2014 keeps the TF deck path independent of the epigenetic deck path.
 # =============================================================================
 
 # `%||%` is defined once in R/utils-internal.R and visible to every R/
@@ -90,7 +90,7 @@ predict_binding_zones_epigenetic <- function(
   # `centroid_frac`: fraction of the zone's max regional logFC that a region
   # must reach to count as a centroid in addition to being a local maximum
   # among the regions inside the zone. The diamond(s) on the deck mark
-  # *region-specific* centroids — i.e. the gRNA position(s) where the per-
+  # *region-specific* centroids \u2014 i.e. the gRNA position(s) where the per-
   # region logFC is locally highest within the zone, not the kernel-summed
   # s(x) argmax (which biases toward multi-guide overlap zones even when
   # one region has the standout signal). For a monotonically-decreasing
@@ -103,12 +103,12 @@ predict_binding_zones_epigenetic <- function(
   # treated as a flank of the primary.
   # `inner_zone_frac` defines a tighter "focal core" inside each outer zone.
   # The outer zone (zone_frac, default 0.3) captures the bp range where
-  # β > 0.3 · max(β) — this is intentionally wide (~3.1σ ≈ 930 bp at σ=300
+  # \u03b2 > 0.3 \u00b7 max(\u03b2) \u2014 this is intentionally wide (~3.1\u03c3 \u2248 930 bp at \u03c3=300
   # for a single-source signal) so it honestly represents the chromatin-
   # domain extent the labelling kernel can resolve. Inside each zone we
   # additionally walk outward from the zone's peak position until
-  # β drops below inner_zone_frac · max(β within zone), and report that
-  # contiguous run as the focal core (default 0.7 → ~1.7σ ≈ 510 bp single-
+  # \u03b2 drops below inner_zone_frac \u00b7 max(\u03b2 within zone), and report that
+  # contiguous run as the focal core (default 0.7 \u2192 ~1.7\u03c3 \u2248 510 bp single-
   # source baseline). Visually: light outer bar for broad domain, dark
   # inner bar for focal core. Avoids forcing the reader to choose between
   # "broad-domain biology" and "focal peak resolution" framings.
@@ -150,7 +150,7 @@ predict_binding_zones_epigenetic <- function(
 
   # Per-region weights for this TF (used by both region-specific centroid
   # detection and the n_regions_supporting diagnostic). Computed once
-  # here so both downstream blocks see the same filtered table — earlier
+  # here so both downstream blocks see the same filtered table \u2014 earlier
   # versions duplicated the subset in two places, which is fine but
   # error-prone if the filtering rule ever drifts.
   detected <- long_data[long_data$protein == tf_name, , drop = FALSE]
@@ -158,22 +158,22 @@ predict_binding_zones_epigenetic <- function(
   detected <- detected[!is.na(detected$pos) & !is.na(detected$lfc), ,
                        drop = FALSE]
 
-  # ── Zone detection runs on s(x), NOT β = s(x)/C(x) ─────────────────────
+  # \u2500\u2500 Zone detection runs on s(x), NOT \u03b2 = s(x)/C(x) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # This is the deliberate departure from the TF path. For the TF deck,
-  # β = s/C is the right object to threshold: it answers "where is per-
-  # guide enrichment density highest?" — which is what motif-anchored
+  # \u03b2 = s/C is the right object to threshold: it answers "where is per-
+  # guide enrichment density highest?" \u2014 which is what motif-anchored
   # scoring needs. But for broad chromatin factors with relatively
-  # uniform per-region logFCs (e.g. KDM2A on hTERT with logFC≈0.2–0.4
-  # across all 5 regions), β amplifies at lone-guide edges: at R1 alone
-  # at +1100, β ≈ R1's logFC because numerator and denominator both
+  # uniform per-region logFCs (e.g. KDM2A on hTERT with logFC\u22480.2\u20130.4
+  # across all 5 regions), \u03b2 amplifies at lone-guide edges: at R1 alone
+  # at +1100, \u03b2 \u2248 R1's logFC because numerator and denominator both
   # collapse to a single guide's contribution; in the multi-guide
-  # interior at ~0 bp, β is the kernel-weighted average of all logFCs,
-  # which is *lower* than any single one. The upshot is the β-peak
+  # interior at ~0 bp, \u03b2 is the kernel-weighted average of all logFCs,
+  # which is *lower* than any single one. The upshot is the \u03b2-peak
   # lands at the lone-guide edge even though the actual labelling
-  # intensity peaks in the interior — so the zone bar and the s(x)
+  # intensity peaks in the interior \u2014 so the zone bar and the s(x)
   # curve drawn in the upper panel disagree, which is misleading.
   #
-  # s(x) directly answers "where is labelling intensity high?" — which
+  # s(x) directly answers "where is labelling intensity high?" \u2014 which
   # is what proximity labelling fundamentally measures, and which is
   # what the upper-panel curve already shows. Using it for zone detection
   # makes the bar visually consistent with the curve. The support mask
@@ -201,29 +201,29 @@ predict_binding_zones_epigenetic <- function(
     stringsAsFactors = FALSE)
   zones$zone_width <- zones$zone_end - zones$zone_start
   # `peak_beta` (column name retained for downstream-CSV continuity)
-  # stores the kernel-summed peak — max(s(x)) inside the zone — and is
+  # stores the kernel-summed peak \u2014 max(s(x)) inside the zone \u2014 and is
   # what drives the inner-core fill colour gradient. This is a property
   # of the smooth signal curve.
   zones$peak_beta  <- mapply(function(s, e) max(signal[s:e]),
                               zone_s, zone_e)
 
-  # ── Region-specific centroids ──────────────────────────────────────────
+  # \u2500\u2500 Region-specific centroids \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # The diamond(s) drawn on the deck mark *calculated* bp positions where
   # the per-region logFC pattern peaks. Each centroid is identified by
   # finding regions inside the zone whose logFC is a local maximum among
-  # in-zone regions AND is at least centroid_frac × max(zone_lfcs). For
+  # in-zone regions AND is at least centroid_frac \u00d7 max(zone_lfcs). For
   # each such centroid REGION we then compute a CALCULATED bp coordinate
   # by taking the logFC-weighted average of that region and its
   # immediate positive-logFC neighbours in the zone. The diamond sits at
-  # this calculated bp, NOT at the gRNA position — analogous in spirit
+  # this calculated bp, NOT at the gRNA position \u2014 analogous in spirit
   # to the no-motif TF path emitting bubble positions at find_local_
   # maxima(s(x)) bp coordinates rather than snapping to gRNAs.
   #
   # This addresses the bias problems in both prior alternatives: it does
-  # NOT use β = s/C (which puts the argmax at the outermost guide when
-  # logFCs are uniform — KDM2A failure mode), and it does NOT use s(x)
+  # NOT use \u03b2 = s/C (which puts the argmax at the outermost guide when
+  # logFCs are uniform \u2014 KDM2A failure mode), and it does NOT use s(x)
   # argmax alone (which puts the argmax in the multi-guide kernel-
-  # overlap zone even when one region clearly dominates — GATAD2A
+  # overlap zone even when one region clearly dominates \u2014 GATAD2A
   # failure mode). The weighted-average-of-neighbours is data-driven:
   # the centroid is pulled toward whichever side carries more positive
   # signal, equals the gRNA coordinate only when both immediate
@@ -231,15 +231,15 @@ predict_binding_zones_epigenetic <- function(
   # multi-centroid output for two-peak zones.
   #
   # Examples:
-  #   GATAD2A (R5=0.85, R4=0.50, R3=0.42, R2=0.47, R1≈0): single
-  #   centroid at R5 (only one passing 0.7 × 0.85 threshold), calculated
-  #   position = (0.85·(−380) + 0.50·(−50)) / 1.35 = −258. Diamond at
-  #   −258 (between R5 and R4, weighted toward R5).
+  #   GATAD2A (R5=0.85, R4=0.50, R3=0.42, R2=0.47, R1\u22480): single
+  #   centroid at R5 (only one passing 0.7 \u00d7 0.85 threshold), calculated
+  #   position = (0.85\u00b7(\u2212380) + 0.50\u00b7(\u221250)) / 1.35 = \u2212258. Diamond at
+  #   \u2212258 (between R5 and R4, weighted toward R5).
   #
   #   Hypothetical two-peak (R5=0.85, R4=0.20, R3=0.10, R2=0.80):
-  #   two centroids at R5 and R2. R5 calculated = (0.85·(−380) +
-  #   0.20·(−50)) / 1.05 = −317. R2 calculated = (0.10·200 + 0.80·360)
-  #   / 0.90 = +342. Two diamonds at −317 and +342.
+  #   two centroids at R5 and R2. R5 calculated = (0.85\u00b7(\u2212380) +
+  #   0.20\u00b7(\u221250)) / 1.05 = \u2212317. R2 calculated = (0.10\u00b7200 + 0.80\u00b7360)
+  #   / 0.90 = +342. Two diamonds at \u2212317 and +342.
   #
   # The `centroid_positions` / `centroid_lfcs` columns are comma-
   # separated strings so the deck plot can parse them and emit one
@@ -258,7 +258,7 @@ predict_binding_zones_epigenetic <- function(
     in_zone <- detected_pos$pos >= zs & detected_pos$pos <= ze
     zr <- detected_pos[in_zone, , drop = FALSE]
     if (nrow(zr) == 0) {
-      # No positive-logFC region inside the zone — fall back to the
+      # No positive-logFC region inside the zone \u2014 fall back to the
       # s(x) argmax position so we still emit a meaningful marker.
       zones$peak_position[zi] <- {
         s_idx <- zone_s[zi]
@@ -285,7 +285,7 @@ predict_binding_zones_epigenetic <- function(
     is_centroid <- is_lmax & (zr$lfc >= centroid_frac * zone_max_lfc)
     if (!any(is_centroid)) {
       # Defensive: should never trigger because the zone-max is itself a
-      # local max and is by construction >= centroid_frac × itself, but
+      # local max and is by construction >= centroid_frac \u00d7 itself, but
       # guard against floating-point edge cases by promoting whichever
       # row has the highest logFC.
       is_centroid <- seq_len(nz) == which.max(zr$lfc)
@@ -296,8 +296,8 @@ predict_binding_zones_epigenetic <- function(
     # bp coordinate instead of snapping to the gRNA position. Pulled
     # toward whichever neighbour carries more signal; equals the gRNA
     # coordinate only when neighbours have zero positive contribution.
-    # See the no-motif TF path (predict_binding_events_coverage_aware →
-    # find_local_maxima on s(x)) — same intent (interpolated bp position
+    # See the no-motif TF path (predict_binding_events_coverage_aware \u2192
+    # find_local_maxima on s(x)) \u2014 same intent (interpolated bp position
     # informed by neighbouring data), but here we use a per-region
     # weighted average instead of a curve local-max because the goal is
     # to centre on region-specific signal, not on kernel-summation peaks.
@@ -309,7 +309,7 @@ predict_binding_zones_epigenetic <- function(
       weighted.mean(zr$pos[nbhd_idx], zr$lfc[nbhd_idx])
     }, numeric(1))
     # Centroid LOGFC stays as the region's own logFC (not the weighted
-    # average) — this is the value used for primary-centroid ranking and
+    # average) \u2014 this is the value used for primary-centroid ranking and
     # for the centroid_lfcs CSV column, where the user should see the
     # actual measurement of the centroid region, not a derived statistic.
     c_lfc <- zr$lfc[centroid_idx]
@@ -321,15 +321,15 @@ predict_binding_zones_epigenetic <- function(
     zones$n_centroids[zi]        <- length(c_pos)
   }
   # Focal-core bounds within each zone. For each zone, find ALL contiguous
-  # runs of s(x) > inner_zone_frac · zone_max — one inner core per
+  # runs of s(x) > inner_zone_frac \u00b7 zone_max \u2014 one inner core per
   # suprathreshold sub-peak. A zone with a single sharp peak gets one
   # core; a zone with two well-separated sub-peaks (separated by a valley
   # that dips below the inner threshold) gets two cores; etc. The
   # earlier single-core walker started at the zone's global max and
   # walked outward until the first valley, which missed any secondary
   # sub-peaks above threshold (the SSRP1 case, where R5/R6/R7 cluster
-  # and R3/R2 cluster both pass 0.70·max but the valley between them
-  # at ~−700 dips below). The core_starts / core_ends / core_widths
+  # and R3/R2 cluster both pass 0.70\u00b7max but the valley between them
+  # at ~\u2212700 dips below). The core_starts / core_ends / core_widths
   # columns are comma-separated bp strings so the deck plot can parse
   # them and emit one geom_rect per core; core_start / core_end /
   # core_width still carry the FIRST core as scalars for back-compat.
@@ -375,7 +375,7 @@ predict_binding_zones_epigenetic <- function(
     function(p) min(abs(p - pos_r)), numeric(1))
 
   # Supporting-regions count (diagnostic, not a filter). Counts detected
-  # regions whose logFC is positive AND whose position falls within ±2σ
+  # regions whose logFC is positive AND whose position falls within \u00b12\u03c3
   # of the zone bounds. Tells the reader whether the zone is broadly
   # supported across the gRNA tile or driven by a single guide. Reuses
   # `detected` from the top of the function (single source of truth).
@@ -387,7 +387,7 @@ predict_binding_zones_epigenetic <- function(
   }, zone_s, zone_e)
 
   # Geometric edge cap on the peak (mirrors the TF path's max_grna_distance
-  # filter — a zone whose peak β sits more than `max_grna_distance` away
+  # filter \u2014 a zone whose peak \u03b2 sits more than `max_grna_distance` away
   # from any gRNA is in the kernel-tail region where labelling intensity
   # is mathematically determined by one boundary guide, not by genuine
   # binding-zone signal).
@@ -395,7 +395,7 @@ predict_binding_zones_epigenetic <- function(
     zones <- zones[zones$distance_to_nearest_grna <= max_grna_distance, ,
                     drop = FALSE]
   }
-  # Edge-gRNA weight-cap (mirrors the TF path). Drops zones whose peak β
+  # Edge-gRNA weight-cap (mirrors the TF path). Drops zones whose peak \u03b2
   # is dominated by a single boundary guide's Gaussian tail.
   if (nrow(zones) > 0 && !is.null(edge_grna_weight_cap) &&
       is.finite(edge_grna_weight_cap) && length(pos_r) >= 2) {
@@ -457,7 +457,7 @@ plot_epigenetic_zone_deck <- function(
     # `peak_signal_range`: optional 2-vector c(min, max) defining the
     # colourbar limits in the inner-core fill gradient. When NULL (default),
     # ggplot picks the per-plot range, so different factors render with
-    # incomparable colour scales — convenient for solo plotting, misleading
+    # incomparable colour scales \u2014 convenient for solo plotting, misleading
     # for a deck where the reader is comparing across pages. When supplied,
     # the gradient is locked to this range across the whole deck (and could
     # be made cross-locus by the caller). Out-of-range values are squished
@@ -473,7 +473,7 @@ plot_epigenetic_zone_deck <- function(
 
   # Match plot_binding_deconvolution's window-clipping rationale: scope
   # the visible x-range to where the gRNA tile can actually constrain
-  # signal (one σ past the outermost guides on each side).
+  # signal (one \u03c3 past the outermost guides on each side).
   pos_r_detect <- sort(as.numeric(pos_map[!is.na(pos_map)]))
   if (length(pos_r_detect) >= 1) {
     left_cut  <- min(pos_r_detect) - kernel_sigma
@@ -484,7 +484,7 @@ plot_epigenetic_zone_deck <- function(
   }
   sig_df <- data.frame(x = x_grid, y = sig$y)
 
-  # ── Lower-panel lane y-positions ────────────────────────────────────────
+  # \u2500\u2500 Lower-panel lane y-positions \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   neg_floor   <- min(c(0, rd$lfc), na.rm = TRUE)
   track_gap   <- 0.06 * sig_max
   track_top   <- neg_floor - track_gap
@@ -503,7 +503,7 @@ plot_epigenetic_zone_deck <- function(
   ca_bot    <- ca_top - ca_band_h * sig_max
 
   p <- ggplot() +
-    # ── upper panel: signal + region logFCs ────────────────────────────
+    # \u2500\u2500 upper panel: signal + region logFCs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     geom_area(data = sig_df, aes(x = x, y = y),
               fill = COLS$guide, alpha = 0.25) +
     geom_line(data = sig_df, aes(x = x, y = y),
@@ -513,7 +513,7 @@ plot_epigenetic_zone_deck <- function(
     geom_point(data = rd, aes(x = pos, y = lfc),
                color = COLS$neutral, size = 3) +
     # Region labels: above for positive lfc, to the right side for
-    # negative lfc — matches the TF deck's plot_binding_deconvolution
+    # negative lfc \u2014 matches the TF deck's plot_binding_deconvolution
     # behaviour so the two decks stay visually consistent and so
     # negative-lfc labels don't drop into the zone-bar lane below.
     geom_text(data = transform(rd,
@@ -525,21 +525,21 @@ plot_epigenetic_zone_deck <- function(
     geom_hline(yintercept = 0, linewidth = 0.3, color = "grey70") +
     geom_vline(xintercept = 0, linetype = "dashed",
                color = COLS$tss, linewidth = 0.7) +
-    # ── lower-panel container strip ─────────────────────────────────────
+    # \u2500\u2500 lower-panel container strip \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     annotate("rect",
              xmin = -upstream, xmax = downstream,
              ymin = track_bot, ymax = track_top,
              fill = "grey97", color = NA)
 
-  # ── Zone bars (two-tone: broad outer + focal inner core) ──────────────
+  # \u2500\u2500 Zone bars (two-tone: broad outer + focal inner core) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # Outer rect at [zone_start, zone_end] with low alpha + grey fill marks
-  # the broad chromatin-domain extent (β > zone_frac · max). Inner rect at
-  # [core_start, core_end] with full alpha + peak_β-coloured fill marks
-  # the focal core (β > inner_zone_frac · max within zone). For factors
-  # with truly broad uniform binding, outer ≈ inner; for factors with a
+  # the broad chromatin-domain extent (\u03b2 > zone_frac \u00b7 max). Inner rect at
+  # [core_start, core_end] with full alpha + peak_\u03b2-coloured fill marks
+  # the focal core (\u03b2 > inner_zone_frac \u00b7 max within zone). For factors
+  # with truly broad uniform binding, outer \u2248 inner; for factors with a
   # sharp focal peak inside a broader detectable zone, the dark inner bar
   # sits inside a light outer bar, communicating both pieces of
-  # information honestly under the σ=300 bp resolution constraint.
+  # information honestly under the \u03c3=300 bp resolution constraint.
   if (!is.null(zones_df) && nrow(zones_df) > 0) {
     z <- zones_df
     z$y_mid    <- zone_y_mid
@@ -550,7 +550,7 @@ plot_epigenetic_zone_deck <- function(
                xmin = -upstream, xmax = downstream,
                ymin = zone_y_bot, ymax = zone_y_top,
                fill = "grey94", color = NA) +
-      # Outer (broad domain) bar — light grey, no peak-β colouring (the
+      # Outer (broad domain) bar \u2014 light grey, no peak-\u03b2 colouring (the
       # outer extent is a geometric statement about kernel-resolved support
       # range, not a magnitude statement).
       geom_rect(data = z,
@@ -558,7 +558,7 @@ plot_epigenetic_zone_deck <- function(
                     ymin = y_bottom,    ymax = y_top),
                 fill = "grey78", color = "grey55",
                 linewidth = 0.25, alpha = 0.55)
-    # Inner (focal core) bar(s) — peak-β colour gradient, full alpha.
+    # Inner (focal core) bar(s) \u2014 peak-\u03b2 colour gradient, full alpha.
     # Each zone may have one or more cores depending on whether the
     # signal has multiple suprathreshold sub-peaks separated by
     # sub-threshold valleys. The new schema stores them as comma-
@@ -566,7 +566,7 @@ plot_epigenetic_zone_deck <- function(
     # and expand to a long-format core_rects df so ggplot draws one
     # geom_rect per core. Older zones_df produced before this multi-
     # core change carry only `core_start` / `core_end` (single bp per
-    # zone) — fall back to that when the new columns are absent.
+    # zone) \u2014 fall back to that when the new columns are absent.
     has_multi_core <- all(c("core_starts", "core_ends") %in% names(z))
     has_single_core <- all(c("core_start",  "core_end")  %in% names(z))
     core_rects <- if (has_multi_core) {
@@ -621,7 +621,7 @@ plot_epigenetic_zone_deck <- function(
                   color = "black", linewidth = 0.3, alpha = 0.90) +
         fill_scale
     }
-    # Centroid markers — one diamond per region-specific centroid inside
+    # Centroid markers \u2014 one diamond per region-specific centroid inside
     # each zone. `centroid_positions` is a comma-separated string of bp
     # values (single value for single-centroid zones, multiple for
     # multi-peak zones). Parse and expand to a long-format data.frame so
@@ -642,7 +642,7 @@ plot_epigenetic_zone_deck <- function(
       data.frame(centroid_pos = z$peak_position, y_mid = z$y_mid)
     }
     if (!is.null(centroid_df) && nrow(centroid_df) > 0) {
-      # Centroid markers — black, with thin white border for contrast
+      # Centroid markers \u2014 black, with thin white border for contrast
       # against either the red inner-core fill or the grey outer
       # background. Shape 23 (filled diamond with separate stroke)
       # gives us a fill + outline pair so the diamond is unambiguously
@@ -662,7 +662,7 @@ plot_epigenetic_zone_deck <- function(
     }
   }
 
-  # ── ChIP-Atlas stacked sub-lane ───────────────────────────────────────
+  # \u2500\u2500 ChIP-Atlas stacked sub-lane \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (n_ca_rows > 0) {
     row_h <- (ca_top - ca_bot) / n_ca_rows
     ord   <- order(suppressWarnings(as.integer(sub("SRX", "", ca_rows))),
@@ -716,7 +716,7 @@ plot_epigenetic_zone_deck <- function(
          title = paste0(tf_name, " \u2014 epigenetic binding zones"),
          subtitle = sprintf(
            "%d zone(s) | kernel \u03c3 = %d bp  \u00b7  outer bar = \u03b2 > %.2f\u00b7max(\u03b2) (broad domain) | inner bar = \u03b2 > %.2f\u00b7max(\u03b2) within zone (focal core)",
-           # Avoid `%||%` here — caspex_analysis.R's definition does
+           # Avoid `%||%` here \u2014 caspex_analysis.R's definition does
            # `is.na(a[[1]])` which returns a length-N logical when `a` is
            # a data.frame, tripping the `||` short-circuit. Use an
            # explicit null check.
@@ -787,7 +787,7 @@ compute_chipatlas_overlap <- function(zones_df, chipatlas_res) {
 }
 
 # =============================================================================
-# SECTION 3b: Epigenetic complexes — loader + per-complex stacked plot
+# SECTION 3b: Epigenetic complexes \u2014 loader + per-complex stacked plot
 # =============================================================================
 
 #' Load EpiGenes complexes from a CSV pair.
@@ -1017,7 +1017,7 @@ plot_epigenetic_complex_locus <- function(
       fill_scale
   }
   if (!is.null(centroid_df) && nrow(centroid_df) > 0) {
-    # Black diamond with white outline — same convention as the
+    # Black diamond with white outline \u2014 same convention as the
     # per-factor zone deck. Drawn last so it always sits on top of
     # the inner-core fills and remains visible at any zoom.
     p <- p + geom_point(data = centroid_df,
@@ -1026,7 +1026,7 @@ plot_epigenetic_complex_locus <- function(
                         fill = "black", color = "white", stroke = 0.5)
   }
 
-  # Right-edge member labels — detected members in bold, not-detected
+  # Right-edge member labels \u2014 detected members in bold, not-detected
   # in faded grey + "(n/d)" annotation.
   label_df <- data.frame(
     tf = ordered,
@@ -1044,7 +1044,7 @@ plot_epigenetic_complex_locus <- function(
     scale_color_manual(values = c(`TRUE` = "grey20", `FALSE` = "grey55"),
                         guide = "none")
 
-  # Title / subtitle — complex info
+  # Title / subtitle \u2014 complex info
   title_str <- paste0(
     gene_info$name %||% "(locus)", "  \u2014  ",
     complex_info$group_name, " \u00b7 ", complex_info$complex_name,
@@ -1145,7 +1145,7 @@ plot_histone_marks_locus <- function(
     downstream = 500) {
   marks    <- histone_data$marks
   ct       <- histone_data$cell_type %||% "(unspecified)"
-  # Active first, repressive last — fixed order regardless of input order
+  # Active first, repressive last \u2014 fixed order regardless of input order
   # so every deck is visually comparable. Anything passed in but not
   # recognised falls into "other" and renders below the canonical six in
   # neutral grey.
@@ -1221,7 +1221,7 @@ plot_histone_marks_locus <- function(
   bar_h <- 0.7  # bar height per row (in y-units; row spacing is 1)
 
   p <- ggplot() +
-    # ── Section background bands ────────────────────────────────────────
+    # \u2500\u2500 Section background bands \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     annotate("rect",
              xmin = -upstream, xmax = downstream,
              ymin = matched_y_bot, ymax = matched_y_top,
@@ -1230,7 +1230,7 @@ plot_histone_marks_locus <- function(
              xmin = -upstream, xmax = downstream,
              ymin = all_y_bot, ymax = all_y_top,
              fill = "grey97", color = NA) +
-    # ── Section labels (left-edge italics) ──────────────────────────────
+    # \u2500\u2500 Section labels (left-edge italics) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     annotate("text",
              x = -upstream, y = (matched_y_top + matched_y_bot) / 2,
              label = sprintf("Cell-type-matched (%s)", ct),
@@ -1239,7 +1239,7 @@ plot_histone_marks_locus <- function(
              x = -upstream, y = (all_y_top + all_y_bot) / 2,
              label = "All cell types aggregated",
              hjust = 1.05, size = 3, fontface = "italic", color = "grey25") +
-    # ── TSS line + gRNAs ────────────────────────────────────────────────
+    # \u2500\u2500 TSS line + gRNAs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     geom_vline(xintercept = 0, linetype = "dashed",
                color = COLS$tss, linewidth = 0.7) +
     geom_point(data = grna_df, aes(x = x, y = y),
@@ -1259,7 +1259,7 @@ plot_histone_marks_locus <- function(
       scale_fill_identity()
   }
 
-  # Mark labels at right edge (always render — empty rows still show
+  # Mark labels at right edge (always render \u2014 empty rows still show
   # their label so absence-of-data is visible).
   p <- p +
     geom_text(data = rows_meta,
@@ -1311,7 +1311,7 @@ plot_histone_marks_locus <- function(
                                  unit = "pt"))
 }
 
-# Helper: vectorised version of fill_for() used inside ggplot data — same
+# Helper: vectorised version of fill_for() used inside ggplot data \u2014 same
 # colour palette but operates on a character vector. Defined at top level
 # so plot_histone_marks_locus() can reference it inside the geom layer.
 #' Recycle a fill vector to a target length, padding with grey.
@@ -1325,7 +1325,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 }
 
 # =============================================================================
-# SECTION 5: Top-level orchestrator — run_caspex_epigenetic()
+# SECTION 5: Top-level orchestrator \u2014 run_caspex_epigenetic()
 # =============================================================================
 
 #' Run the epigenetic-factor binding-zone analysis on a CasPEX result.
@@ -1404,7 +1404,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   deck-wide colour-bar limits on the inner-core fill. NULL (default)
 #'   auto-computes from the union of all rendered factors' peak betas
 #'   so every page shares one colour scale. Override when stitching
-#'   multiple decks (e.g. shared range across hTERT + MYC).
+#'   multiple decks together for cross-locus comparison.
 #'
 #'
 #' @param chipatlas Fetch and overlay ChIP-Atlas peaks per factor
@@ -1492,7 +1492,7 @@ run_caspex_epigenetic <- function(
     # range across hTERT + MYC for cross-locus comparison) by passing the
     # union of both deck's ranges explicitly.
     peak_signal_range   = NULL,
-    # ── Locus-level histone-marks summary page ───────────────────────────
+    # \u2500\u2500 Locus-level histone-marks summary page \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     # When TRUE, fetches ChIP-Atlas peaks for the canonical six histone
     # marks (or whatever `histone_marks` lists) and saves a single-page
     # PDF (`histone_marks.pdf`) showing the chromatin-state landscape at
@@ -1507,7 +1507,7 @@ run_caspex_epigenetic <- function(
     histone_cell_type       = "HEK293T",
     histone_max_experiments_matched = 50,
     histone_max_experiments_all     = 50,
-    # ── Epigenetic complexes (EpiGenes-derived) deck ─────────────────────
+    # \u2500\u2500 Epigenetic complexes (EpiGenes-derived) deck \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     # When `epigenetic_complexes_csv` and `epigenes_main_csv` are both
     # supplied, an `epigenetic_complexes.pdf` is generated with one page
     # per known epigenetic complex (BAF, NuRF, PRC2, etc.). Each page
@@ -1534,7 +1534,7 @@ run_caspex_epigenetic <- function(
   # Critical for `upstream` / `downstream`: the zone-detection x_grid is
   # built as seq(-upstream, downstream, by = 5), and gRNAs landing outside
   # that range produce empty signal on every factor.  Mackenzie FOXP2 sits
-  # at +980..+1194 — well past the legacy +500 default — so without this
+  # at +980..+1194 \u2014 well past the legacy +500 default \u2014 so without this
   # inheritance every factor returns 0 zones.
   if (is.null(kernel_sigma))
     kernel_sigma <- (result$kernel_sigma %||% 300)
@@ -1549,7 +1549,7 @@ run_caspex_epigenetic <- function(
 
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-  # ── Resolve epigenetic-factor universe + complexes paths from bundled
+  # \u2500\u2500 Resolve epigenetic-factor universe + complexes paths from bundled
   # databases when not user-supplied.  Keeps the simple
   # `run_caspex_epigenetic(result, out_dir = ...)` call self-contained;
   # users who want to pin a custom list still pass `epigenetic_factors = ...`
@@ -1584,7 +1584,7 @@ run_caspex_epigenetic <- function(
   message("Gene: ", result$gene_info$name,
           "  |  factors requested: ", length(epigenetic_factors))
 
-  # ── Detection-overlap diagnostic ───────────────────────────────────────
+  # \u2500\u2500 Detection-overlap diagnostic \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   detected_proteins <- unique(result$long_data$protein)
   factors_present   <- intersect(epigenetic_factors, detected_proteins)
   factors_missing   <- setdiff(epigenetic_factors, detected_proteins)
@@ -1600,7 +1600,7 @@ run_caspex_epigenetic <- function(
             if (length(factors_missing) > msg_n) ", ..." else "")
   }
 
-  # ── Optional dual-class subtraction ────────────────────────────────────
+  # \u2500\u2500 Optional dual-class subtraction \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (isTRUE(subtract_tf_overlap) && !is.null(result$motif_results)) {
     tf_motif_set <- names(result$motif_results)
     pre <- length(factors_present)
@@ -1616,7 +1616,7 @@ run_caspex_epigenetic <- function(
     return(invisible(NULL))
   }
 
-  # ── Spatial model on the epigenetic-factor subset ──────────────────────
+  # \u2500\u2500 Spatial model on the epigenetic-factor subset \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   ld_epi <- result$long_data[result$long_data$protein %in% factors_present, ,
                               drop = FALSE]
   # Force isTF = TRUE locally so run_spatial_model's tfs_only filter does
@@ -1635,7 +1635,7 @@ run_caspex_epigenetic <- function(
     return(invisible(NULL))
   }
 
-  # ── Per-factor zone detection ──────────────────────────────────────────
+  # \u2500\u2500 Per-factor zone detection \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   message(sprintf(
     "\nDetecting binding zones (kernel \u03c3=%d bp, zone_frac=%.2f)...",
     kernel_sigma, zone_frac))
@@ -1666,8 +1666,8 @@ run_caspex_epigenetic <- function(
   factors_with_zones <- if (nrow(zones_df) > 0) unique(zones_df$tf)
                                               else character(0)
 
-  # Top-N selection for the deck (rank by max peak β across each factor's
-  # zones — same spirit as detail_top_n on the TF path).
+  # Top-N selection for the deck (rank by max peak \u03b2 across each factor's
+  # zones \u2014 same spirit as detail_top_n on the TF path).
   detail_factors <- factors_with_zones
   if (is.finite(detail_top_n) && length(detail_factors) > detail_top_n) {
     top_betas <- sapply(detail_factors, function(f)
@@ -1676,7 +1676,7 @@ run_caspex_epigenetic <- function(
       seq_len(detail_top_n)]
   }
 
-  # ── ChIP-Atlas fetch ───────────────────────────────────────────────────
+  # \u2500\u2500 ChIP-Atlas fetch \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   chipatlas_res <- NULL
   if (isTRUE(chipatlas) && length(detail_factors) > 0 &&
       exists("run_chipatlas_scan", mode = "function")) {
@@ -1698,18 +1698,18 @@ run_caspex_epigenetic <- function(
       })
   }
 
-  # ── Per-zone overlap diagnostic ────────────────────────────────────────
+  # \u2500\u2500 Per-zone overlap diagnostic \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (nrow(zones_df) > 0) {
     zones_df <- compute_chipatlas_overlap(zones_df, chipatlas_res)
   }
 
-  # ── Per-factor deck PDF ────────────────────────────────────────────────
+  # \u2500\u2500 Per-factor deck PDF \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (isTRUE(save_plots) && length(detail_factors) > 0) {
     deck_path <- file.path(out_dir, "epigenetic_zone_deck.pdf")
     # Compute deck-wide peak-signal range so every page shares the same
     # colourbar. Auto-compute from the rendered factors' peak_beta column
     # unless the caller passed one in. Float-pad the lower bound to 0 if
-    # the auto range starts above 0 — the colourbar reads more naturally
+    # the auto range starts above 0 \u2014 the colourbar reads more naturally
     # when the low end of the gradient corresponds to "no signal" rather
     # than "lowest detected signal across this run".
     deck_range <- peak_signal_range
@@ -1759,7 +1759,7 @@ run_caspex_epigenetic <- function(
     message("  Zone deck saved: ", deck_path)
   }
 
-  # ── Locus-level histone-marks page ────────────────────────────────────
+  # \u2500\u2500 Locus-level histone-marks page \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   histone_data <- NULL
   if (isTRUE(histone_marks_pdf) && length(histone_marks) > 0 &&
       exists("fetch_histone_peaks_for_locus", mode = "function")) {
@@ -1806,7 +1806,7 @@ run_caspex_epigenetic <- function(
     }
   }
 
-  # ── Epigenetic-complexes deck ─────────────────────────────────────────
+  # \u2500\u2500 Epigenetic-complexes deck \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   complexes_pdf <- NULL
   if (!is.null(epigenetic_complexes_csv) &&
       !is.null(epigenes_main_csv) &&
@@ -1905,7 +1905,7 @@ run_caspex_epigenetic <- function(
     }
   }
 
-  # ── CSV outputs ────────────────────────────────────────────────────────
+  # \u2500\u2500 CSV outputs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   gene_name <- result$gene_info$name
   if (nrow(zones_df) > 0) {
     zones_df$gene            <- gene_name
@@ -1924,7 +1924,7 @@ run_caspex_epigenetic <- function(
   write.csv(spatial_df_epi, spatial_path, row.names = FALSE)
   message("  Spatial CSV: ", spatial_path)
 
-  # ── Run summary ────────────────────────────────────────────────────────
+  # \u2500\u2500 Run summary \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   message("\n--- Epigenetic run summary --------------------------------------")
   message(" Factors requested  : ", length(epigenetic_factors))
   message(" Detected in run    : ", length(factors_present))

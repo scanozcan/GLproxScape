@@ -7,7 +7,7 @@
 lookup_gene(gene_name, species = "homo_sapiens", transcript = "canonical")
 }
 \arguments{
-\item{gene_name}{HGNC symbol (e.g. "MYC")}
+\item{gene_name}{HGNC symbol}
 
 \item{species}{Ensembl species string (default "homo_sapiens")}
 

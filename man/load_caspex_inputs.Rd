@@ -38,7 +38,7 @@ so that region still contributes its logFC data but no gRNA cut-site
 tick is drawn.
 }
 \examples{
-# Use the bundled FOXP2 example dataset
+# Use the bundled example dataset
 inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
                           package = "GLproxScape")
 inputs <- load_caspex_inputs(inputs_dir)
@@ -46,12 +46,9 @@ str(inputs)
 
 \dontrun{
 # Then feed into the pipeline:
-run_caspex(gene       = "FOXP2",
-           transcript = "ENST00000901759",
+run_caspex(gene       = "<GENE_SYMBOL>",
            grnas      = inputs$grnas,
            data_files = inputs$data_files,
-           upstream   = 200,
-           downstream = 2000,
-           out_dir    = tempfile("foxp2_run_"))
+           out_dir    = tempfile("run_"))
 }
 }

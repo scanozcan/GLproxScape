@@ -122,7 +122,7 @@ the reader can compare bubble vs. zone framings.}
 deck-wide colour-bar limits on the inner-core fill. NULL (default)
 auto-computes from the union of all rendered factors' peak betas
 so every page shares one colour scale. Override when stitching
-multiple decks (e.g. shared range across hTERT + MYC).}
+multiple decks together for cross-locus comparison.}
 
 \item{histone_marks_pdf}{If TRUE (default), generate a single-page
 \code{histone_marks.pdf} showing the chromatin-state landscape at

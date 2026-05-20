@@ -35,13 +35,10 @@ factors.
 
 \section{Bundled example data}{
 
-One reanalysis dataset is shipped under \code{inst/extdata/examples/}:
-\itemize{
-  \item \code{foxp2_mackenzie/} -- 3 sgRNAs at the FOXP2 promoter
-    (Mackenzie et al. 2026)
-}
-Resolve a path with
-\code{system.file("extdata/examples/foxp2_mackenzie", package = "GLproxScape")}.
+A small example sgRNA manifest + per-region differential file is
+shipped under \code{inst/extdata/examples/} for end-to-end smoke
+testing and demonstration of the input file layout. Resolve a path
+with \code{system.file("extdata/examples", package = "GLproxScape")}.
 }
 
 \seealso{

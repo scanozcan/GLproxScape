@@ -26,13 +26,10 @@
 #' }
 #'
 #' @section Bundled example data:
-#' One reanalysis dataset is shipped under \code{inst/extdata/examples/}:
-#' \itemize{
-#'   \item \code{foxp2_mackenzie/} -- 3 sgRNAs at the FOXP2 promoter
-#'     (Mackenzie et al. 2026)
-#' }
-#' Resolve a path with
-#' \code{system.file("extdata/examples/foxp2_mackenzie", package = "GLproxScape")}.
+#' A small example sgRNA manifest + per-region differential file is
+#' shipped under \code{inst/extdata/examples/} for end-to-end smoke
+#' testing and demonstration of the input file layout. Resolve a path
+#' with \code{system.file("extdata/examples", package = "GLproxScape")}.
 #'
 #' @keywords internal
 #' @import ggplot2
@@ -46,12 +43,12 @@
 #' @importFrom utils head read.csv read.delim tail write.csv
 "_PACKAGE"
 
-# ── R CMD check NSE-binding declarations ────────────────────────────────────
+# \u2500\u2500 R CMD check NSE-binding declarations \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
 # ggplot2 evaluates aes() arguments as data-frame column names; R CMD check
 # can't tell that and reports them as "no visible binding for global variable".
 # Declaring them here is the standard fix; same for column names produced by
 # our reshape() / aggregate() / merge() steps. Anything that's not actually
-# a column name (e.g. mistyped helper) belongs in code, not on this list —
+# a column name (e.g. mistyped helper) belongs in code, not on this list \u2014
 # keep this list trimmed to the real NSE bindings.
 utils::globalVariables(c(
   # primary event / signal columns

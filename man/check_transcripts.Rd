@@ -16,7 +16,7 @@ check_transcripts(
 )
 }
 \arguments{
-\item{gene}{HGNC symbol (e.g. \code{"FOXP2"}, \code{"ABCB1"}).}
+\item{gene}{HGNC symbol.}
 
 \item{manifest_path}{Path to the folder containing the sgRNA
 manifest. Resolved relative to the current working directory if
@@ -63,16 +63,16 @@ anchor for \code{\link{run_caspex}}.
 \details{
 Use BEFORE picking the \code{transcript} argument for
 \code{\link{run_caspex}}, since alt-promoters of the same gene can
-sit hundreds of kb apart (e.g. FOXP2's HEK293 "active TSS1" is
-~328 kb upstream of the canonical FOXP2-201 TSS, so a run anchored
-on the canonical transcript would not find Mackenzie's sgRNAs at all).
+sit hundreds of kb apart from the canonical transcript TSS — a run
+anchored on the canonical TSS would fail to find sgRNAs tiling a
+distal alt-promoter.
 }
 \examples{
 \dontrun{
-# Use the bundled FOXP2 example data
+# Use the bundled example dataset
 inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
                           package = "GLproxScape")
-df <- check_transcripts(gene = "FOXP2", manifest_path = inputs_dir)
+df <- check_transcripts(gene = "<GENE_SYMBOL>", manifest_path = inputs_dir)
 head(df, 5)
 }
 }
