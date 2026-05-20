@@ -19,8 +19,8 @@ chromatin readers / writers / erasers / remodellers that lack a
 sequence-specific motif, and an optional ChIP-Atlas overlay validates
 predictions against independent ChIP-seq peaks.
 
-The package is the analysis backbone behind the GLproxScape preprint
-(Ozcan *et al.*, in preparation) and ships a bundled reanalysis of the
+The package is the analysis backbone behind the GLproxScape paper
+(Ozcan *et al.* 2026) and ships a bundled reanalysis of the
 Mackenzie *et al.* (2026) FOXP2 dataset (3 sgRNAs) as an end-to-end
 example.
 
@@ -34,11 +34,6 @@ remotes::install_github("scanozcan/GLproxScape", build_vignettes = TRUE)
 `build_vignettes = TRUE` builds the FOXP2 walkthrough during install so
 `vignette("foxp2-mackenzie", package = "GLproxScape")` is available;
 drop it for a faster install if you don't need the vignette HTML.
-
-The repository is private during the paper review period. Until it
-goes public, `remotes::install_github()` needs a GitHub Personal
-Access Token with `repo` scope available as the `GITHUB_PAT`
-environment variable (e.g. in `~/.Renviron`).
 
 ## Quick start
 
@@ -520,11 +515,7 @@ If you use GLproxScape in your work, please cite:
 
 > Ozcan C., *et al.* **GLproxScape: spatial deconvolution of
 > dCas9-APEX2 proximity proteomics into TF and chromatin-regulator
-> binding predictions.** (in preparation, 2026)
-
-A machine-readable `inst/CITATION` will be added when the paper is
-accepted; until then, `citation("GLproxScape")` returns a generic entry
-auto-derived from `DESCRIPTION`.
+> binding predictions.** 2026.
 
 ## License
 
@@ -532,8 +523,5 @@ auto-derived from `DESCRIPTION`.
 
 ## Issues and contributions
 
-While the repo is private during paper review, contributions are
-welcome from invited collaborators. File issues at
-[github.com/scanozcan/GLproxScape/issues](https://github.com/scanozcan/GLproxScape/issues).
-After the paper is published the repo will be made public and the
-contributing workflow will switch to standard fork-and-PR.
+Bug reports, feature requests, and pull requests are welcome at
+[github.com/scanozcan/GLproxScape](https://github.com/scanozcan/GLproxScape).
