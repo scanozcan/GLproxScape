@@ -5,19 +5,33 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 <!-- badges: end -->
 
-Spatial deconvolution of **dCas9-APEX2 proximity proteomics** into
-transcription-factor and chromatin-regulator binding predictions.
+Spatial reconstruction of chromatin occupancy landscapes from
+**genomic locus proximity proteomics** (e.g.\ dCas9-APEX2 / CASPEX,
+C-BERST, CasID).
 
-GLproxScape models each guide RNA's biotinylation footprint as a Gaussian
-labelling cone (default σ = 300 bp), forward-smears the per-region
-proteomics enrichment into a continuous spatial track *s(x)*, normalises
-by guide coverage *C(x)* to recover an occupancy estimate β(x) = s(x) /
-max(C(x), c_min · max C), then deconvolves into TF binding events on a
-position-weight-matrix basis — either JASPAR (default) or HOCOMOCO v12,
-selected via `motif_search_engine`. A separate zone-based path handles
-chromatin readers / writers / erasers / remodellers that lack a
-sequence-specific motif, and an optional ChIP-Atlas overlay validates
-predictions against independent ChIP-seq peaks.
+GLproxScape treats per-region enrichments from tiled-sgRNA experiments
+as indirect spatial measurements and reconstructs the latent
+chromatin-binding landscape via a Gaussian labelling-kernel forward
+model. Each guide's biotinylation footprint is modelled as a Gaussian
+cone (default σ = 300 bp); per-region enrichment values are
+forward-smeared into a continuous spatial track *s(x)*, normalised by
+guide coverage *C(x)* to recover an occupancy estimate β(x) = s(x) /
+max(C(x), c_min · max C), and then routed through two analytical
+paths:
+
+* **Motif-anchored deconvolution** for sequence-specific transcription
+  factors. Non-negative least squares against a position-weight-matrix
+  basis (JASPAR by default, HOCOMOCO v12 optional via
+  `motif_search_engine`) recovers discrete binding events with bp-level
+  positions and per-event amplitudes.
+* **Zone-based reconstruction** for chromatin readers, writers,
+  erasers, and remodellers that lack defined DNA-binding motifs. Broad
+  occupancy zones are detected directly on the labelling intensity,
+  enabling recovery of overlapping members of multi-subunit complexes
+  (e.g.\ MLL4/WBP7).
+
+An optional ChIP-Atlas overlay cross-references each prediction
+against independent public ChIP-seq peaks for orthogonal validation.
 
 The package is the analysis backbone behind the GLproxScape paper
 (Ozcan *et al.* 2026) and ships a bundled reanalysis of the
@@ -513,9 +527,10 @@ when you're picking it.
 
 If you use GLproxScape in your work, please cite:
 
-> Ozcan C., *et al.* **GLproxScape: spatial deconvolution of
-> dCas9-APEX2 proximity proteomics into TF and chromatin-regulator
-> binding predictions.** 2026.
+> Ozcan SC, Yildirim B, Cagiral U, Sergi B, Gonen M, Acilan C.
+> **GLproxScape enables spatial reconstruction of chromatin
+> occupancy landscapes from genomic locus proximity proteomics.**
+> 2026.
 
 ## License
 
