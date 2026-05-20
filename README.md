@@ -13,7 +13,8 @@ labelling cone (default σ = 300 bp), forward-smears the per-region
 proteomics enrichment into a continuous spatial track *s(x)*, normalises
 by guide coverage *C(x)* to recover an occupancy estimate β(x) = s(x) /
 max(C(x), c_min · max C), then deconvolves into TF binding events on a
-JASPAR position-weight-matrix basis. A separate zone-based path handles
+position-weight-matrix basis — either JASPAR (default) or HOCOMOCO v12,
+selected via `motif_search_engine`. A separate zone-based path handles
 chromatin readers / writers / erasers / remodellers that lack a
 sequence-specific motif, and an optional ChIP-Atlas overlay validates
 predictions against independent ChIP-seq peaks.
@@ -312,14 +313,23 @@ this as a quick lookup; the same content lives (with longer prose) in
 
 #### Motif scan
 
-- `motif_thresh` = `0.80` — JASPAR PWM threshold as fraction of max
-  log-odds. Typical relaxation: `0.75`.
+- `motif_thresh` = `0.80` — PWM threshold as fraction of max
+  log-odds. Typical relaxation: `0.75`. Applied identically to JASPAR
+  and HOCOMOCO matrices.
 - `motif_scan_pool` = `"selected"` — `"selected"` (44-TF default cut)
   | `"spatial_all"` (also scan every spatial-model TF outside that cut;
   results live in `result$motif_results_extra`).
 - `motif_score_weight` = `"none"` — `"none"` (binary threshold filter)
   | `"linear"` (amplitude × score_frac) | `"log"` (amplitude ×
   2^(score_frac - 1)).
+- `motif_search_engine` = `"jaspar"` — motif database used for per-TF
+  PWM lookup: `"jaspar"` (REST per-TF) | `"hocomoco"` (MEME bundle
+  downloaded once and cached to `tools::R_user_dir("caspex", "cache")`).
+- `hocomoco_version` = `"v12"` — HOCOMOCO release when
+  `motif_search_engine = "hocomoco"`: `"v12"` (CORE bundle, default)
+  | `"v11"` (full mono bundle). Ignored otherwise.
+- `hocomoco_species` = `"human"` — `"human"` | `"mouse"` when
+  `motif_search_engine = "hocomoco"`. Ignored otherwise.
 
 #### Deconvolution kernel + filters
 
@@ -450,9 +460,12 @@ The pipeline runs in one call (`run_caspex`) that internally chains:
 3. **Spatial model** — per-protein per-region significance gating
    (`pval_thresh`, `min_regions`), then `compute_spatial` aggregates
    into a TF-level summary scoring composite / specificity.
-4. **Motif scan** — for each TF in the deck roster, fetches the JASPAR
-   position weight matrix and scans the promoter at
-   `motif_thresh × max_score`.
+4. **Motif scan** — for each TF in the deck roster, fetches the
+   position weight matrix from JASPAR (default) or HOCOMOCO v12
+   (`motif_search_engine = "hocomoco"`) and scans the promoter at
+   `motif_thresh × max_score`. The same fractional threshold is used
+   for both engines; HOCOMOCO matrices are typically higher information
+   content so the absolute stringency is slightly stricter.
 5. **Coverage-aware deconvolution** — `β(x) = s(x) / max(C(x), cov_floor ·
    max(C))` thresholded into zones, with one event emitted per JASPAR hit
    inside each zone. Optional PWM-score weighting reshapes per-event
