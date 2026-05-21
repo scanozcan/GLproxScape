@@ -10,5 +10,5 @@
 # Columns: region<TAB>sequence<TAB>data_file
 region	sequence	data_file
 R1	CAGACACCTTTCGGTGATAG	Region1.txt
-R2	ACACCTTTCGGTGATAGGGG	Region2.txt
+R2	ACACCTTTCGGTGATAGGGA	Region2.txt
 R3	TTATCCCGAAGCGTCAGTAG	Region3.txt
