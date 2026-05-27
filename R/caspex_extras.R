@@ -95,11 +95,16 @@ plot_tf_one_pager <- function(result, tf_name) {
   # Honour whichever binding-path mode produced `result` \u2014 otherwise the
   # one-pager would silently draw smoothed-NNLS events even when the main
   # run used coverage-aware scoring, and would disagree with result$binding_events.
+  # Pull upstream/downstream from the result so the A1 x-axis matches
+  # the actual window the run used (e.g. -750/+500 for Pizzolato/Gao),
+  # not plot_binding_deconvolution's legacy default (-2500/+500).
   p_top <- plot_binding_deconvolution(
     tf_name, ld, pos_map, motif_hits,
     weight_mode      = result$weight_mode      %||% "mod_t",
     cov_floor        = result$cov_floor        %||% 0.05,
-    kernel_sigma     = result$kernel_sigma     %||% 250
+    kernel_sigma     = result$kernel_sigma     %||% 250,
+    upstream         = result$upstream         %||% 2500,
+    downstream       = result$downstream       %||% 500
   ) + labs(title = NULL, subtitle = NULL)
 
   # Middle panel: per-region bar of logFC with p-value stars
