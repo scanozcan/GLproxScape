@@ -12,7 +12,7 @@
 <!-- badges: end -->
 
 Spatial reconstruction of chromatin occupancy landscapes from
-**genomic locus proximity proteomics** (e.g.\ dCas9-APEX2 / CASPEX,
+**genomic locus proximity proteomics** (e.g. dCas9-APEX2 / CASPEX,
 C-BERST, CasID).
 
 GLproxScape treats per-region enrichments from tiled-sgRNA experiments
@@ -34,7 +34,7 @@ paths:
   erasers, and remodellers that lack defined DNA-binding motifs. Broad
   occupancy zones are detected directly on the labelling intensity,
   enabling recovery of overlapping members of multi-subunit complexes
-  (e.g.\ MLL4/WBP7).
+  (e.g. MLL4/WBP7).
 
 An optional ChIP-Atlas overlay cross-references each prediction
 against independent public ChIP-seq peaks for orthogonal validation.
@@ -391,6 +391,13 @@ this as a quick lookup; the same content lives (with longer prose) in
 - `chipatlas` = `FALSE` — `TRUE` to fetch and render ChIP-seq peaks.
 - `chipatlas_threshold` = `"05"` — `"05"` (Q<1e-5) | `"10"` | `"20"`.
 - `chipatlas_max_experiments` = `100` — SRX cap per TF.
+- `chipatlas_genome` = `NULL` — UCSC assembly code passed to ChIP-Atlas
+  (e.g. `"hg38"`, `"mm10"`, `"rn7"`). `NULL` auto-derives from `species`
+  via the bundled species → UCSC mapping (`homo_sapiens` → `hg38`,
+  `mus_musculus` → `mm10`, etc.). For non-human runs, an Ensembl /
+  ChIP-Atlas assembly-frame mismatch is detected automatically and the
+  gene coordinates are lifted to the target assembly via the Ensembl
+  archive (e.g. GRCm39 → GRCm38 for mouse mm10 via `e102.rest.ensembl.org`).
 - `special_interest_gene` = `NULL` — character vector of TFs that
   bypass the SRX cap.
 - `special_interest_cap` = `NULL` — optional integer cap for
@@ -507,7 +514,7 @@ The pipeline runs in one call (`run_caspex`) that internally chains:
     per-complex deck showing co-localising members. Output in
     `<out_dir>/epigenetic/`. Skipped when `epigenetic = FALSE`.
 
-The supplemental methods in the accompanying paper give the precise
+The Methods section of the accompanying paper gives the precise
 mathematical framing for every step.
 
 ## Reproducibility
@@ -515,10 +522,10 @@ mathematical framing for every step.
 The Mackenzie FOXP2 analysis reported in the paper is reproducible
 end-to-end from the bundled `inst/extdata/examples/foxp2_mackenzie/`
 folder; the corresponding `run_caspex()` parameter settings live in
-the FOXP2 vignette. The other paper analyses (Myers *et al.* TERT
-and MYC, plus the in-house dataset) ship as a Zenodo companion
-deposit alongside the manuscript; only the FOXP2 example is bundled
-inside the package itself.
+the FOXP2 vignette. The other published paper analyses (Myers *et al.*
+TERT and MYC, Pizzolato *et al.* FOXQ1, Gao *et al.* mouse Ripk3)
+ship as a Zenodo companion deposit alongside the manuscript; only
+the FOXP2 example is bundled inside the package itself.
 
 The `transcript = "canonical"` default in `lookup_gene()` keeps
 TSS-relative coordinates stable across Ensembl releases. For
@@ -529,14 +536,30 @@ explicitly (`transcript = "ENST00000901759"`); the diagnostic helper
 `check_transcripts()` surfaces the per-transcript sgRNA-match table
 when you're picking it.
 
+### Cross-species runs
+
+Non-human datasets work end-to-end by passing the appropriate
+`species` argument (e.g. `species = "mus_musculus"` for the Gao
+*et al.* mouse Ripk3 reanalysis). `run_caspex()` then auto-routes
+the Ensembl gene lookup, promoter sequence fetch, and ChIP-Atlas
+overlay to the matching genome. Ensembl currently serves GRCm39
+for mouse while ChIP-Atlas's mouse corpus remains in mm10 (GRCm38);
+the engine detects this assembly-frame mismatch and lifts gene
+coordinates via the Ensembl archive at `e102.rest.ensembl.org`
+before filtering ChIP-Atlas peaks, so the overlay aligns
+correctly. Supported species → assembly mappings include
+`homo_sapiens` → `hg38`, `mus_musculus` → `mm10`,
+`rattus_norvegicus` → `rn7`, plus fly, worm, zebrafish, chicken,
+yeast, and a few others; override with `chipatlas_genome = "..."`
+when a specific older build is needed.
+
 ## Citation
 
 If you use GLproxScape in your work, please cite:
 
 > Ozcan SC, Yildirim B, Cagiral U, Sergi B, Gonen M, Acilan C.
-> **GLproxScape enables spatial reconstruction of chromatin
-> occupancy landscapes from genomic locus proximity proteomics.**
-> 2026.
+> **GLproxScape reconstructs spatial chromatin occupancy landscapes
+> from tiled genomic locus proteomics.** 2026.
 
 ## License
 
