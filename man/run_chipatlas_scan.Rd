@@ -14,7 +14,8 @@ run_chipatlas_scan(
   max_experiments = 50,
   special_interest_gene = NULL,
   special_interest_cap = NULL,
-  quiet = TRUE
+  quiet = TRUE,
+  genome = "hg38"
 )
 }
 \arguments{
@@ -37,6 +38,11 @@ run_chipatlas_scan(
 \item{special_interest_cap}{(see function body).}
 
 \item{quiet}{(see function body).}
+
+\item{genome}{ChIP-Atlas genome assembly code (e.g. "hg38", "mm10").
+Defaults to "hg38" for backward compatibility. Use the
+`chipatlas_genome` argument on \code{run_caspex()} to auto-derive
+this from the run's `species` argument (recommended).}
 }
 \value{
 named list tf -> data.frame (or NULL if no peaks in window).

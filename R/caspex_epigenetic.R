@@ -1777,7 +1777,11 @@ run_caspex_epigenetic <- function(
         max_experiments_matched = histone_max_experiments_matched,
         max_experiments_all     = histone_max_experiments_all,
         threshold     = chipatlas_threshold,
-        quiet         = chipatlas_quiet),
+        quiet         = chipatlas_quiet,
+        # Pick up the genome the TF scan used so histone marks match.
+        # Falls back to hg38 for legacy result objects (pre this change)
+        # that don't carry chipatlas_genome.
+        genome        = result$chipatlas_genome %||% "hg38"),
       error = function(e) {
         message("  Histone fetch failed: ", conditionMessage(e))
         NULL

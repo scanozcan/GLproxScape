@@ -44,6 +44,7 @@ run_caspex(
   chipatlas = FALSE,
   chipatlas_threshold = "05",
   chipatlas_max_experiments = 100,
+  chipatlas_genome = NULL,
   special_interest_gene = NULL,
   special_interest_cap = NULL,
   chipatlas_quiet = TRUE,
@@ -216,6 +217,16 @@ motif-scanned TF.}
 
 \item{chipatlas_max_experiments}{Cap on SRX experiments per TF
 (default 100, newest first).}
+
+\item{chipatlas_genome}{ChIP-Atlas genome assembly to use (e.g.
+\code{"hg38"}, \code{"mm10"}, \code{"rn7"}). NULL (default) =
+derive automatically from \code{species} via the internal
+\code{.species_to_chipatlas_genome()} mapping
+(homo_sapiens -> hg38, mus_musculus -> mm10, etc.). Pass a literal
+assembly code (e.g. \code{"hg19"}, \code{"mm9"}) to override the
+auto-derivation when you need an older genome build than ChIP-Atlas's
+current default for that species. Unknown species fall back to hg38
+with a warning.}
 
 \item{special_interest_gene}{Optional character vector of TF symbols
 that bypass the per-TF SRX cap and have ALL (or

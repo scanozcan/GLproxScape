@@ -36,6 +36,46 @@
   dir
 }
 
+# ---- species -> ChIP-Atlas genome assembly mapping --------------------------
+#
+# ChIP-Atlas publishes its per-SRX BEDs and the experimentList.tab under
+# per-genome subtrees keyed by UCSC-style assembly codes. We expose a small
+# Ensembl-species -> ChIP-Atlas genome lookup so callers can pass the same
+# `species` arg they already give run_caspex (mus_musculus, homo_sapiens, ...)
+# without thinking about UCSC assembly codes. Returns NULL for unknown species
+# so the caller can surface a clean error rather than silently fetching the
+# wrong genome's BEDs.
+#
+# Default mapping is the LATEST ChIP-Atlas-supported assembly per species; if
+# you need a specific older assembly (hg19, mm9), pass `chipatlas_genome`
+# explicitly to run_caspex() to override the auto-derivation.
+.SPECIES_TO_CHIPATLAS_GENOME <- list(
+  homo_sapiens               = "hg38",
+  mus_musculus               = "mm10",
+  rattus_norvegicus          = "rn7",
+  drosophila_melanogaster    = "dm6",
+  caenorhabditis_elegans     = "ce11",
+  danio_rerio                = "danRer11",
+  gallus_gallus              = "galGal6",
+  saccharomyces_cerevisiae   = "sacCer3",
+  schizosaccharomyces_pombe  = "spo2",
+  arabidopsis_thaliana       = "tair10",
+  oryza_sativa               = "msu7"
+)
+
+#' Map an Ensembl species string to a ChIP-Atlas genome assembly code.
+#'
+#' @param species Ensembl species token (e.g. "homo_sapiens", "mus_musculus").
+#'   Case-insensitive; underscores or spaces tolerated. Pass NULL to get back
+#'   NULL.
+#' @return character genome code (e.g. "hg38") or NULL for unknown species.
+#' @noRd
+.species_to_chipatlas_genome <- function(species) {
+  if (is.null(species) || !nzchar(species)) return(NULL)
+  key <- tolower(gsub("[[:space:]]+", "_", trimws(species)))
+  .SPECIES_TO_CHIPATLAS_GENOME[[key]]
+}
+
 # ---- experimentList.tab ------------------------------------------------------
 
 #' URL of the ChIP-Atlas experimentList.tab metadata.
@@ -107,9 +147,30 @@ download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
 # rows or misaligning columns when the file has mixed widths. The line-based
 # parse is bulletproof: we always take exactly the first 6 fields.
 .chipatlas_experiment_list <- local({
-  cached <- NULL
-  function(force_reload = FALSE, verbose = TRUE) {
-    if (!is.null(cached) && !force_reload) return(cached)
+  # Two-level cache:
+  #   `cached_unfiltered` — the full parsed experimentList. Built once per
+  #     R session (file is 300+ MB, parse is ~3-5 s).
+  #   `cached_filtered`   — named list keyed by genome assembly, each entry
+  #     the genome-filtered subset. Built lazily on first call per genome.
+  # The filter message ("mm10 TF + Histone rows after filter: ...") fires
+  # exactly once per (session, genome) combination, not once per call from
+  # the inner loop — that previously flooded the console.
+  cached_unfiltered <- NULL
+  cached_filtered   <- list()
+  function(force_reload = FALSE, verbose = TRUE,
+           genome = "hg38") {
+    if (!is.null(cached_filtered[[genome]]) && !force_reload)
+      return(cached_filtered[[genome]])
+    if (is.null(cached_unfiltered) || force_reload) {
+      # First call this session — go fetch + parse.
+      ## continues below
+    } else {
+      # Cache hit on the parse, miss on the genome subset. Filter without
+      # printing the parse diagnostics.
+      cached_filtered[[genome]] <<-
+        .filter_chipatlas_for_run(cached_unfiltered, genome, verbose = verbose)
+      return(cached_filtered[[genome]])
+    }
     fpath <- download_chipatlas_experiment_list(force = FALSE, quiet = !verbose)
     if (verbose) message("  Parsing experimentList.tab (",
                           format(file.size(fpath), big.mark = ","), " bytes)...")
@@ -146,37 +207,49 @@ download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
                                    big.mark = ",")),
                     collapse = ", "))
     }
-    # Keep hg38 TFs and Histones; drop DNase / ATAC / Bisulfite / etc. Try
-    # several spellings because ChIP-Atlas has been known to shift labels
-    # between releases. Histone rows are needed by the locus-level histone-
-    # marks page (fetch_histone_peaks_for_locus); TF code paths query by
-    # antigen NAME (e.g. "MYC") so adding histone rows doesn't change any
-    # existing TF behaviour.
-    keep_class_patterns <- c("TFs and others", "TFs_and_others",
-                              "TF", "TFs", "Transcription factor",
-                              "Histone", "Histones", "Histone modification")
-    keep <- df$genome == "hg38" & df$antigen_class %in% keep_class_patterns
-    if (verbose) message("    hg38 TF + Histone rows after filter: ",
-                         format(sum(keep), big.mark = ","))
-    if (sum(keep) == 0) {
-      warning("ChIP-Atlas: 0 rows matched hg38 + (TF | Histone) filter. ",
-              "Check the antigen_class breakdown above and update ",
-              "keep_class_patterns in caspex_chipatlas.R.")
-    }
-    df <- df[keep, , drop = FALSE]
-    cached <<- df
-    df
+    # Cache the full parsed table; per-genome filtered subsets are built
+    # lazily by .filter_chipatlas_for_run() and cached in `cached_filtered`.
+    cached_unfiltered <<- df
+    cached_filtered[[genome]] <<-
+      .filter_chipatlas_for_run(df, genome, verbose = verbose)
+    cached_filtered[[genome]]
   }
 })
 
-#' Experiment IDs for a given TF (antigen symbol) on hg38
+#' Filter the parsed experimentList by genome assembly + antigen class.
 #'
-#' @param tf HGNC symbol; matched case-insensitively against `antigen`.
+#' Keep antigen classes for TFs and Histone marks; drop DNase / ATAC /
+#' Bisulfite / etc. Try several spellings because ChIP-Atlas has been known
+#' to shift labels between releases.
+#' @param df parsed experimentList data.frame.
+#' @param genome ChIP-Atlas genome assembly code (e.g. "hg38", "mm10").
+#' @param verbose whether to print the filter result.
+#' @noRd
+.filter_chipatlas_for_run <- function(df, genome = "hg38", verbose = FALSE) {
+  keep_class_patterns <- c("TFs and others", "TFs_and_others",
+                            "TF", "TFs", "Transcription factor",
+                            "Histone", "Histones", "Histone modification")
+  keep <- df$genome == genome & df$antigen_class %in% keep_class_patterns
+  if (verbose) message("    ", genome, " TF + Histone rows after filter: ",
+                       format(sum(keep), big.mark = ","))
+  if (sum(keep) == 0) {
+    warning("ChIP-Atlas: 0 rows matched ", genome, " + (TF | Histone) filter. ",
+            "Check the antigen_class breakdown above and update ",
+            "keep_class_patterns in caspex_chipatlas.R, or verify that ",
+            "ChIP-Atlas has data for the '", genome, "' assembly.")
+  }
+  df[keep, , drop = FALSE]
+}
+
+#' Experiment IDs for a given TF (antigen symbol) on a specified genome.
+#'
+#' @param tf HGNC / MGI symbol; matched case-insensitively against `antigen`.
+#' @param genome ChIP-Atlas genome assembly code (default "hg38").
 #' @return character vector of experiment IDs (SRX/DRX/ERX), ordered
 #'   newest-first by numeric suffix within each prefix.
 #' @noRd
-chipatlas_srx_for_tf <- function(tf) {
-  el <- .chipatlas_experiment_list()
+chipatlas_srx_for_tf <- function(tf, genome = "hg38") {
+  el <- .chipatlas_experiment_list(genome = genome)
   hit <- which(toupper(el$antigen) == toupper(tf))
   if (!length(hit)) return(character(0))
   ids <- el$srx[hit]
@@ -391,8 +464,9 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
                                   max_experiments = 50,
                                   is_special_interest = FALSE,
                                   special_interest_cap = NULL,
-                                  quiet = TRUE) {
-  srx_ids <- chipatlas_srx_for_tf(tf)
+                                  quiet = TRUE,
+                                  genome = "hg38") {
+  srx_ids <- chipatlas_srx_for_tf(tf, genome = genome)
   if (!length(srx_ids)) return(NULL)
   # Cap selection logic:
   #   - Standard TF: take the newest `max_experiments` SRX.
@@ -412,12 +486,13 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
   n_srx_scanned <- length(srx_ids)
   win <- .chipatlas_window_coords(gene_info, promoter_info, upstream, downstream)
 
-  el  <- .chipatlas_experiment_list()
+  el  <- .chipatlas_experiment_list(genome = genome)
   ct_lookup <- setNames(el$cell_type, el$srx)
   cc_lookup <- setNames(el$cell_type_class, el$srx)
 
   pieces <- lapply(srx_ids, function(srx) {
-    fpath <- download_chipatlas_srx_bed(srx, threshold = threshold, quiet = quiet)
+    fpath <- download_chipatlas_srx_bed(srx, genome = genome,
+                                         threshold = threshold, quiet = quiet)
     df <- .read_chipatlas_srx_bed(fpath)
     df <- .chipatlas_filter_to_window(df, win)
     if (is.null(df) || nrow(df) == 0) return(NULL)
@@ -464,6 +539,10 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
 #' @param special_interest_gene (see function body).
 #' @param special_interest_cap (see function body).
 #' @param quiet (see function body).
+#' @param genome ChIP-Atlas genome assembly code (e.g. "hg38", "mm10").
+#'   Defaults to "hg38" for backward compatibility. Use the
+#'   `chipatlas_genome` argument on \code{run_caspex()} to auto-derive
+#'   this from the run's `species` argument (recommended).
 #' @export
 run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                                upstream = 2500, downstream = 500,
@@ -471,7 +550,8 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                                max_experiments = 50,
                                special_interest_gene = NULL,
                                special_interest_cap  = NULL,
-                               quiet = TRUE) {
+                               quiet = TRUE,
+                               genome = "hg38") {
   if (!length(tfs)) return(list())
   # Normalize special-interest list for case-insensitive matching.
   sig_set <- if (is.null(special_interest_gene)) character(0)
@@ -480,6 +560,7 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
   sig_cap_label <- if (is.null(special_interest_cap)) "no cap"
                    else paste0("cap=", special_interest_cap, " SRX/TF")
   message("  ChIP-Atlas scan: ", length(tfs), " TFs",
+          " | genome=", genome,
           " | threshold=", threshold,
           " | cap=", max_experiments, " SRX/TF",
           if (length(sig_set))
@@ -489,11 +570,11 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
   # Prime the experimentList cache once so progress lines don't interleave.
   # Note: .chipatlas_experiment_list(verbose = TRUE) prints parse diagnostics
   # exactly once per R session (it caches inside a local()).
-  el <- .chipatlas_experiment_list()
+  el <- .chipatlas_experiment_list(genome = genome)
   # Tell the user how many SRX rows we're searching against and sanity-check
   # the first requested TF; "0 peaks" for every TF is almost always a parse
   # or filter failure, not genuinely missing data.
-  message("    hg38 TF experiments loaded: ",
+  message("    ", genome, " TF experiments loaded: ",
           format(nrow(el), big.mark = ","),
           " | unique antigens: ",
           format(length(unique(el$antigen)), big.mark = ","))
@@ -512,7 +593,8 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                             max_experiments = max_experiments,
                             is_special_interest = is_sig,
                             special_interest_cap = special_interest_cap,
-                            quiet = quiet),
+                            quiet = quiet,
+                            genome = genome),
       error = function(e) {
         warning("ChIP-Atlas fetch failed for ", tf, ": ", conditionMessage(e))
         NULL
@@ -583,14 +665,16 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
 .fetch_chipatlas_peaks_for_srxs <- function(srx_ids, gene_info, promoter_info,
                                              upstream = 2500, downstream = 500,
                                              threshold = "05",
-                                             quiet = TRUE) {
+                                             quiet = TRUE,
+                                             genome = "hg38") {
   if (!length(srx_ids)) return(NULL)
   win <- .chipatlas_window_coords(gene_info, promoter_info, upstream, downstream)
-  el  <- .chipatlas_experiment_list()
+  el  <- .chipatlas_experiment_list(genome = genome)
   ct_lookup <- setNames(el$cell_type,       el$srx)
   cc_lookup <- setNames(el$cell_type_class, el$srx)
   pieces <- lapply(srx_ids, function(srx) {
-    fpath <- download_chipatlas_srx_bed(srx, threshold = threshold, quiet = quiet)
+    fpath <- download_chipatlas_srx_bed(srx, genome = genome,
+                                         threshold = threshold, quiet = quiet)
     df <- .read_chipatlas_srx_bed(fpath)
     df <- .chipatlas_filter_to_window(df, win)
     if (is.null(df) || nrow(df) == 0) return(NULL)
@@ -644,8 +728,9 @@ fetch_histone_peaks_for_locus <- function(
     max_experiments_matched = 50,
     max_experiments_all     = 50,
     threshold = "05",
-    quiet = TRUE) {
-  el <- .chipatlas_experiment_list()
+    quiet = TRUE,
+    genome = "hg38") {
+  el <- .chipatlas_experiment_list(genome = genome)
   matched_peaks <- vector("list", length(marks)); names(matched_peaks) <- marks
   all_peaks     <- vector("list", length(marks)); names(all_peaks)     <- marks
   # Two counts per mark per bucket:
@@ -663,7 +748,7 @@ fetch_histone_peaks_for_locus <- function(
   for (mark in marks) {
     # All SRXs for this antigen, newest-first (chipatlas_srx_for_tf sorts
     # by accession-number suffix, descending).
-    all_srx <- chipatlas_srx_for_tf(mark)
+    all_srx <- chipatlas_srx_for_tf(mark, genome = genome)
     if (!length(all_srx)) {
       message("  [histone] ", mark, ": 0 SRX in experimentList")
       next
@@ -726,7 +811,7 @@ fetch_histone_peaks_for_locus <- function(
       matched_peaks[[mark]] <- .fetch_chipatlas_peaks_for_srxs(
         matched_srx, gene_info, promoter_info,
         upstream = upstream, downstream = downstream,
-        threshold = threshold, quiet = quiet)
+        threshold = threshold, quiet = quiet, genome = genome)
     }
 
     # \u2500\u2500 All-cell-types bucket \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -739,7 +824,7 @@ fetch_histone_peaks_for_locus <- function(
       all_peaks[[mark]] <- .fetch_chipatlas_peaks_for_srxs(
         all_srx_capped, gene_info, promoter_info,
         upstream = upstream, downstream = downstream,
-        threshold = threshold, quiet = quiet)
+        threshold = threshold, quiet = quiet, genome = genome)
     }
 
     message(sprintf(

@@ -3608,6 +3608,15 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   \code{"10"}, or \code{"20"}.
 #' @param chipatlas_max_experiments Cap on SRX experiments per TF
 #'   (default 100, newest first).
+#' @param chipatlas_genome ChIP-Atlas genome assembly to use (e.g.
+#'   \code{"hg38"}, \code{"mm10"}, \code{"rn7"}). NULL (default) =
+#'   derive automatically from \code{species} via the internal
+#'   \code{.species_to_chipatlas_genome()} mapping
+#'   (homo_sapiens -> hg38, mus_musculus -> mm10, etc.). Pass a literal
+#'   assembly code (e.g. \code{"hg19"}, \code{"mm9"}) to override the
+#'   auto-derivation when you need an older genome build than ChIP-Atlas's
+#'   current default for that species. Unknown species fall back to hg38
+#'   with a warning.
 #' @param special_interest_gene Optional character vector of TF symbols
 #'   that bypass the per-TF SRX cap and have ALL (or
 #'   \code{special_interest_cap}) of their available SRX scanned.
@@ -3823,6 +3832,12 @@ run_caspex <- function(
     chipatlas               = FALSE,
     chipatlas_threshold     = "05",
     chipatlas_max_experiments = 100,
+    # ChIP-Atlas genome assembly. NULL = derive automatically from `species`
+    # via .species_to_chipatlas_genome() (homo_sapiens -> hg38, mus_musculus
+    # -> mm10, etc.). Pass a literal assembly code (e.g. "hg19", "mm9") to
+    # override the auto-derivation for the rare case you want an older
+    # genome build than ChIP-Atlas's default for that species.
+    chipatlas_genome        = NULL,
     special_interest_gene   = NULL,
     special_interest_cap    = NULL,
     chipatlas_quiet         = TRUE,
@@ -4046,6 +4061,24 @@ run_caspex <- function(
   # track in plots 06/07, 08/09, 11/12 (union peak row per TF) and 10
   # (stacked per-experiment ticks below the bubble strip).
   chipatlas_res <- NULL
+  # Resolve ChIP-Atlas genome assembly. Explicit `chipatlas_genome` argument
+  # wins; otherwise derive from `species` (e.g. mus_musculus -> mm10).
+  # Falls back to hg38 with a warning if the species isn't in our mapping,
+  # so legacy callers (which never passed species) keep working.
+  if (isTRUE(chipatlas)) {
+    if (is.null(chipatlas_genome)) {
+      chipatlas_genome <- .species_to_chipatlas_genome(species)
+      if (is.null(chipatlas_genome)) {
+        warning("Unknown species '", species, "' for ChIP-Atlas; ",
+                "defaulting to hg38. Pass chipatlas_genome explicitly to ",
+                "override (e.g. chipatlas_genome = 'mm10').")
+        chipatlas_genome <- "hg38"
+      } else {
+        message("  ChIP-Atlas genome derived from species '", species,
+                "' -> ", chipatlas_genome)
+      }
+    }
+  }
   if (isTRUE(chipatlas)) {
     if (!isTRUE(.caspex_chipatlas_loaded)) {
       warning("chipatlas=TRUE but caspex_chipatlas.R could not be sourced; ",
@@ -4061,7 +4094,8 @@ run_caspex <- function(
         max_experiments  = chipatlas_max_experiments,
         special_interest_gene = special_interest_gene,
         special_interest_cap  = special_interest_cap,
-        quiet            = chipatlas_quiet
+        quiet            = chipatlas_quiet,
+        genome           = chipatlas_genome
       )
     }
   }
@@ -4379,7 +4413,8 @@ run_caspex <- function(
                 max_experiments  = chipatlas_max_experiments,
                 special_interest_gene = special_interest_gene,
                 special_interest_cap  = special_interest_cap,
-                quiet            = chipatlas_quiet
+                quiet            = chipatlas_quiet,
+                genome           = chipatlas_genome
               ),
               error = function(e) {
                 message("    ChIP-Atlas augment-scan failed: ",
@@ -4591,6 +4626,10 @@ run_caspex <- function(
     # Kept on the result so caspex_extras or interactive inspection can reuse
     # the windowed peak tables without re-hitting the network.
     chipatlas_peaks       = chipatlas_res,
+    # ChIP-Atlas genome assembly used for this run (e.g. "hg38", "mm10").
+    # Stored so the epigenetic deck and any post-hoc ChIP-Atlas calls
+    # match the assembly the TF scan used.
+    chipatlas_genome      = if (isTRUE(chipatlas)) chipatlas_genome else NULL,
     chipatlas_threshold   = if (isTRUE(chipatlas)) chipatlas_threshold else NULL,
     # Output directory the run wrote to \u2014 attached so downstream callers
     # can derive sibling paths like file.path(res$out_dir, "extras")
