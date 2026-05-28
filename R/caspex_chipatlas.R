@@ -76,6 +76,346 @@
   .SPECIES_TO_CHIPATLAS_GENOME[[key]]
 }
 
+# ---- UCSC <-> Ensembl assembly name map ------------------------------------
+#
+# Used to detect assembly mismatches between Ensembl REST (returns Ensembl
+# assembly names like "GRCm39") and ChIP-Atlas (uses UCSC codes like "mm10").
+# When a run has Ensembl-frame gene_info but is asking for ChIP-Atlas data
+# in a different frame, peaks systematically miss the window. The lift-over
+# helpers below resolve this.
+.UCSC_TO_ENSEMBL_ASSEMBLY <- list(
+  hg38     = "GRCh38",
+  hg19     = "GRCh37",
+  mm10     = "GRCm38",
+  mm9      = "NCBIM37",
+  mm39     = "GRCm39",
+  rn7      = "mRatBN7.2",
+  rn6      = "Rnor_6.0",
+  dm6      = "BDGP6.46",
+  ce11     = "WBcel235",
+  danRer11 = "GRCz11",
+  galGal6  = "GRCg6a",
+  sacCer3  = "R64-1-1"
+)
+
+# Per-session cache of Ensembl REST /info/assembly/<species> responses.
+.ENSEMBL_ASSEMBLY_CACHE <- new.env(parent = emptyenv())
+
+#' Query Ensembl REST for the current default assembly for a species.
+#'
+#' @param species Ensembl species token (e.g. "mus_musculus").
+#' @return character Ensembl assembly name (e.g. "GRCm39"), or NA if the
+#'   query fails / species unknown.
+#' @noRd
+.ensembl_assembly_for_species <- function(species) {
+  if (is.null(species) || !nzchar(species)) return(NA_character_)
+  if (exists(species, envir = .ENSEMBL_ASSEMBLY_CACHE, inherits = FALSE))
+    return(get(species, envir = .ENSEMBL_ASSEMBLY_CACHE, inherits = FALSE))
+  js <- tryCatch(ensembl_get(paste0("/info/assembly/", species)),
+                 error = function(e) NULL)
+  asm <- if (!is.null(js) && !is.null(js$assembly_name))
+           as.character(js$assembly_name) else NA_character_
+  assign(species, asm, envir = .ENSEMBL_ASSEMBLY_CACHE)
+  asm
+}
+
+# ---- UCSC chain-file fetch + cache (rtracklayer fallback path) -------------
+#
+# UCSC publishes pre-computed chain files for assembly pairs. We cache them
+# in R_user_dir("caspex","cache")/liftover/ so repeated lift-overs reuse
+# one disk copy. Only used when an Ensembl archive endpoint isn't known
+# for the assembly pair (the archive route is the primary lift-over path).
+
+#' @noRd
+.chain_cache_dir <- function() {
+  base <- tools::R_user_dir("caspex", which = "cache")
+  dir  <- file.path(base, "liftover")
+  dir.create(dir, showWarnings = FALSE, recursive = TRUE)
+  dir
+}
+
+#' @noRd
+.download_chain_file <- function(from_ucsc, to_ucsc, quiet = FALSE) {
+  to_cap <- paste0(toupper(substr(to_ucsc, 1, 1)), substring(to_ucsc, 2))
+  fname  <- sprintf("%sTo%s.over.chain.gz", from_ucsc, to_cap)
+  fpath  <- file.path(.chain_cache_dir(), fname)
+  if (file.exists(fpath) && file.size(fpath) > 1024) return(fpath)
+  url <- sprintf("https://hgdownload.soe.ucsc.edu/goldenpath/%s/liftOver/%s",
+                 from_ucsc, fname)
+  if (!quiet) message("  Downloading UCSC chain file: ", url)
+  res <- tryCatch(
+    utils::download.file(url, fpath, mode = "wb", quiet = quiet),
+    error = function(e) -1L)
+  if (res != 0L || !file.exists(fpath) || file.size(fpath) < 1024) {
+    if (file.exists(fpath)) file.remove(fpath)
+    return(NULL)
+  }
+  fpath
+}
+
+#' Lift-over a gene_info list from one assembly to another via rtracklayer.
+#'
+#' Fallback path — used only when the Ensembl archive route is unavailable.
+#' Returns gene_info unchanged on failure (missing deps, parse error, etc.).
+#' @noRd
+.liftover_gene_info <- function(gene_info, from_ucsc, to_ucsc) {
+  if (from_ucsc == to_ucsc) return(gene_info)
+  if (!requireNamespace("rtracklayer", quietly = TRUE) ||
+      !requireNamespace("GenomicRanges", quietly = TRUE) ||
+      !requireNamespace("IRanges", quietly = TRUE)) {
+    warning("Lift-over needs rtracklayer + GenomicRanges; ",
+            "BiocManager::install(c('rtracklayer','GenomicRanges')). ",
+            "Skipping lift-over ", from_ucsc, " -> ", to_ucsc,
+            "; ChIP-Atlas peaks may not align with gene_info coords.")
+    return(gene_info)
+  }
+  chain_gz <- .download_chain_file(from_ucsc, to_ucsc, quiet = TRUE)
+  if (is.null(chain_gz)) {
+    warning("Could not fetch UCSC chain file ", from_ucsc, " -> ", to_ucsc,
+            "; skipping lift-over.")
+    return(gene_info)
+  }
+  chain_path <- sub("\\.gz$", "", chain_gz)
+  if (!file.exists(chain_path) || file.size(chain_path) < 1024) {
+    ok <- tryCatch({
+      con_in  <- gzfile(chain_gz, "rb")
+      con_out <- file(chain_path, "wb")
+      on.exit({ close(con_in); close(con_out) }, add = TRUE)
+      while (length(buf <- readBin(con_in, "raw", 65536)) > 0)
+        writeBin(buf, con_out)
+      TRUE
+    }, error = function(e) FALSE)
+    if (!isTRUE(ok)) {
+      warning("Failed to decompress chain file ", chain_gz,
+              "; skipping lift-over.")
+      return(gene_info)
+    }
+  }
+  chain <- tryCatch(rtracklayer::import.chain(chain_path),
+                    error = function(e) {
+                      warning("rtracklayer::import.chain failed: ",
+                              conditionMessage(e),
+                              "; skipping lift-over.")
+                      NULL
+                    })
+  if (is.null(chain)) return(gene_info)
+
+  chr <- gene_info$chr
+  if (!grepl("^chr", chr)) chr <- paste0("chr", chr)
+  str <- if (gene_info$strand == 1) "+" else "-"
+  to_lift <- GenomicRanges::GRanges(
+    seqnames = chr,
+    ranges   = IRanges::IRanges(
+      start = c(gene_info$tss, gene_info$start, gene_info$end),
+      end   = c(gene_info$tss, gene_info$start, gene_info$end)),
+    strand   = str)
+  names(to_lift) <- c("tss", "start", "end")
+  lifted <- tryCatch(rtracklayer::liftOver(to_lift, chain),
+                     error = function(e) {
+                       warning("rtracklayer::liftOver failed: ",
+                               conditionMessage(e),
+                               "; skipping lift-over.")
+                       NULL
+                     })
+  if (is.null(lifted)) return(gene_info)
+
+  pick <- function(grl, key) {
+    g <- grl[[key]]
+    if (length(g) == 0) return(NA_integer_)
+    as.integer(GenomicRanges::start(g)[1])
+  }
+  new_tss   <- pick(lifted, "tss")
+  new_start <- pick(lifted, "start")
+  new_end   <- pick(lifted, "end")
+  if (is.na(new_tss)) {
+    warning("Lift-over TSS mapping empty for ", gene_info$name,
+            " (", from_ucsc, " -> ", to_ucsc,
+            "); keeping original coords. ChIP-Atlas overlay may misalign.")
+    return(gene_info)
+  }
+
+  out <- gene_info
+  out$tss   <- new_tss
+  if (!is.na(new_start)) out$start <- new_start
+  if (!is.na(new_end))   out$end   <- new_end
+  message(sprintf(
+    "  Lifted gene_info %s -> %s: TSS %d -> %d (delta %+d bp)",
+    from_ucsc, to_ucsc, gene_info$tss, out$tss, out$tss - gene_info$tss))
+  out
+}
+
+# ---- Ensembl archive endpoints for older assemblies (PRIMARY lift-over) ----
+#
+# Ensembl mirrors prior releases at versioned REST subdomains. Querying the
+# archive returns coordinates in the OLD assembly's frame — for assemblies
+# where an archive REST endpoint exists, this is faster and more reliable
+# than UCSC chain-file lift-over. NOTE: the *.archive.ensembl.org sites are
+# the WEB interface only; REST lives at e<release>.rest.ensembl.org or
+# grch37.rest.ensembl.org.
+.UCSC_TO_ENSEMBL_ARCHIVE <- list(
+  hg19 = "https://grch37.rest.ensembl.org",  # standalone GRCh37 REST
+  mm10 = "https://e102.rest.ensembl.org"     # e102 (Nov 2020) = last GRCm38
+)
+
+#' Re-fetch a gene from an Ensembl archive in a specific assembly's frame.
+#'
+#' Mirrors lookup_gene() but hits the archive base URL. Tries to preserve
+#' the same transcript_id when possible so the TSS anchor stays consistent.
+#'
+#' @return gene_info list with archive-frame coords, or NULL on failure.
+#' @noRd
+.lookup_gene_in_archive <- function(gene_info, archive_base_url,
+                                     verbose = FALSE) {
+  if (!requireNamespace("httr",     quietly = TRUE) ||
+      !requireNamespace("jsonlite", quietly = TRUE))
+    return(NULL)
+  species <- gene_info$species
+  gene    <- gene_info$name
+  if (is.null(species) || is.null(gene)) return(NULL)
+  url <- paste0(archive_base_url, "/lookup/symbol/", species, "/", gene,
+                "?expand=1")
+  if (verbose) message("  [archive lookup] GET ", url)
+  res <- tryCatch(
+    httr::GET(url, httr::add_headers(Accept = "application/json"),
+              httr::timeout(20)),
+    error = function(e) {
+      if (verbose) message("  [archive lookup] httr error: ",
+                            conditionMessage(e))
+      NULL
+    })
+  if (is.null(res)) return(NULL)
+  status <- httr::status_code(res)
+  if (status != 200) {
+    if (verbose) message("  [archive lookup] HTTP ", status, " from ", url)
+    return(NULL)
+  }
+  js <- tryCatch(httr::content(res, "parsed", simplifyVector = FALSE),
+                 error = function(e) NULL)
+  if (is.null(js) || is.null(js$start) || is.null(js$end)) {
+    if (verbose) message("  [archive lookup] response missing start/end fields")
+    return(NULL)
+  }
+
+  # Pick a transcript: same transcript_id, then is_canonical, then longest.
+  tx_target <- gene_info$transcript_id
+  picked_tx <- NULL
+  if (!is.null(js$Transcript) && length(js$Transcript)) {
+    for (tx in js$Transcript) {
+      if (!is.null(tx_target) && identical(tx$id, tx_target)) {
+        picked_tx <- tx; break
+      }
+    }
+    if (is.null(picked_tx)) {
+      canon_ix <- which(vapply(js$Transcript,
+                                function(t) isTRUE(t$is_canonical == 1L),
+                                logical(1)))
+      if (length(canon_ix)) {
+        picked_tx <- js$Transcript[[canon_ix[1]]]
+      } else {
+        spans <- vapply(js$Transcript,
+                        function(t) as.integer(t$end) - as.integer(t$start),
+                        integer(1))
+        picked_tx <- js$Transcript[[which.max(spans)]]
+        if (verbose) message(
+          "  [archive lookup] no is_canonical / no matching transcript_id; ",
+          "picked longest transcript: ", picked_tx$id,
+          " (span ", max(spans), " bp)")
+      }
+    }
+  }
+  strand <- if (!is.null(js$strand)) as.integer(js$strand) else gene_info$strand
+  out <- gene_info
+  out$start <- as.integer(js$start)
+  out$end   <- as.integer(js$end)
+  if (!is.null(picked_tx)) {
+    out$transcript_id <- picked_tx$id
+    out$tss <- if (strand == 1) as.integer(picked_tx$start)
+               else as.integer(picked_tx$end)
+  } else {
+    out$tss <- if (strand == 1) as.integer(js$start) else as.integer(js$end)
+  }
+  out
+}
+
+# Per-session cache for lifted gene_info. Keyed by (transcript_id|name,
+# chipatlas_genome). Lift-over involves an Ensembl archive REST call;
+# without this cache, every fetch_chipatlas_peaks() call would hit the
+# network for the same gene — ~100 redundant calls per typical deck.
+.LIFTOVER_CACHE <- new.env(parent = emptyenv())
+
+#' Decide whether to lift over gene_info for a given chipatlas_genome,
+#' and emit a clear warning when the Ensembl assembly and the
+#' chipatlas_genome's expected Ensembl name disagree.
+#'
+#' Strategy:
+#'   1. Ensembl archive re-lookup (fast, no extra deps; works for assemblies
+#'      where an archive base URL is known).
+#'   2. UCSC chain-file lift-over via rtracklayer (fallback).
+#'   3. Original gene_info with a warning when both fail.
+#'
+#' Results are cached per session so the archive REST call and the
+#' mismatch warning each fire exactly once per (gene, target_genome).
+#'
+#' @noRd
+.maybe_liftover_for_chipatlas <- function(gene_info, chipatlas_genome) {
+  if (is.null(chipatlas_genome) || is.null(gene_info$species))
+    return(gene_info)
+  ens_asm     <- .ensembl_assembly_for_species(gene_info$species)
+  expected_ens <- .UCSC_TO_ENSEMBL_ASSEMBLY[[chipatlas_genome]]
+  if (is.na(ens_asm) || is.null(expected_ens)) return(gene_info)
+  if (identical(ens_asm, expected_ens)) return(gene_info)
+
+  cache_key <- paste0(gene_info$transcript_id %||% gene_info$name, "__",
+                      chipatlas_genome)
+  if (exists(cache_key, envir = .LIFTOVER_CACHE, inherits = FALSE))
+    return(get(cache_key, envir = .LIFTOVER_CACHE, inherits = FALSE))
+
+  warning(sprintf(
+    "ChIP-Atlas coordinate frame mismatch: Ensembl returned %s coordinates ",
+    ens_asm),
+    sprintf("for %s, but chipatlas_genome='%s' expects %s. Lifting over via ",
+            gene_info$name, chipatlas_genome, expected_ens),
+    "Ensembl archive (preferred) or rtracklayer chain file (fallback).",
+    call. = FALSE)
+
+  # --- Strategy 1: Ensembl archive lookup ---------------------------------
+  archive_url <- .UCSC_TO_ENSEMBL_ARCHIVE[[chipatlas_genome]]
+  if (!is.null(archive_url)) {
+    lifted <- .lookup_gene_in_archive(gene_info, archive_url, verbose = TRUE)
+    if (!is.null(lifted) && !is.null(lifted$tss) &&
+        is.finite(lifted$tss) && lifted$tss != gene_info$tss) {
+      message(sprintf(
+        "  Re-fetched gene_info from Ensembl archive (%s -> %s): TSS %d -> %d (delta %+d bp)",
+        ens_asm, expected_ens, gene_info$tss, lifted$tss,
+        lifted$tss - gene_info$tss))
+      assign(cache_key, lifted, envir = .LIFTOVER_CACHE)
+      return(lifted)
+    }
+    if (!is.null(lifted) && !is.null(lifted$tss) && lifted$tss == gene_info$tss) {
+      message("  Ensembl archive returned same TSS as current release; ",
+              "no lift-over needed for ", gene_info$name, ".")
+      assign(cache_key, lifted, envir = .LIFTOVER_CACHE)
+      return(lifted)
+    }
+    warning("Ensembl archive lookup at ", archive_url, " failed; ",
+            "falling back to rtracklayer chain file.")
+  }
+
+  # --- Strategy 2: UCSC chain via rtracklayer (fallback) ------------------
+  ens_to_ucsc <- setNames(names(.UCSC_TO_ENSEMBL_ASSEMBLY),
+                           unlist(.UCSC_TO_ENSEMBL_ASSEMBLY))
+  from_ucsc <- ens_to_ucsc[[ens_asm]]
+  if (is.null(from_ucsc)) {
+    warning("No UCSC code known for Ensembl assembly '", ens_asm,
+            "'; cannot lift-over. Original coords retained.")
+    assign(cache_key, gene_info, envir = .LIFTOVER_CACHE)
+    return(gene_info)
+  }
+  result <- .liftover_gene_info(gene_info, from_ucsc, chipatlas_genome)
+  assign(cache_key, result, envir = .LIFTOVER_CACHE)
+  result
+}
+
 # ---- experimentList.tab ------------------------------------------------------
 
 #' URL of the ChIP-Atlas experimentList.tab metadata.
@@ -394,7 +734,14 @@ download_chipatlas_srx_bed <- function(srx, genome = "hg38", threshold = "05",
 #' @param downstream (see function body).
 #' @noRd
 .chipatlas_window_coords <- function(gene_info, promoter_info,
-                                      upstream, downstream) {
+                                      upstream, downstream,
+                                      chipatlas_genome = NULL) {
+  # Resolve assembly-frame mismatch before computing the window. If
+  # gene_info is in (say) GRCm39 but chipatlas_genome="mm10" (GRCm38),
+  # the window must be lifted or peaks will miss. Returns gene_info
+  # unchanged when no mismatch / no chain or archive route available.
+  if (!is.null(chipatlas_genome))
+    gene_info <- .maybe_liftover_for_chipatlas(gene_info, chipatlas_genome)
   chr    <- gene_info$chr
   tss    <- gene_info$tss
   strand <- gene_info$strand
@@ -484,7 +831,8 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
       srx_ids <- srx_ids[seq_len(max_experiments)]
   }
   n_srx_scanned <- length(srx_ids)
-  win <- .chipatlas_window_coords(gene_info, promoter_info, upstream, downstream)
+  win <- .chipatlas_window_coords(gene_info, promoter_info, upstream, downstream,
+                                   chipatlas_genome = genome)
 
   el  <- .chipatlas_experiment_list(genome = genome)
   ct_lookup <- setNames(el$cell_type, el$srx)
@@ -668,7 +1016,8 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                                              quiet = TRUE,
                                              genome = "hg38") {
   if (!length(srx_ids)) return(NULL)
-  win <- .chipatlas_window_coords(gene_info, promoter_info, upstream, downstream)
+  win <- .chipatlas_window_coords(gene_info, promoter_info, upstream, downstream,
+                                   chipatlas_genome = genome)
   el  <- .chipatlas_experiment_list(genome = genome)
   ct_lookup <- setNames(el$cell_type,       el$srx)
   cc_lookup <- setNames(el$cell_type_class, el$srx)
