@@ -3646,8 +3646,14 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param hocomoco_version HOCOMOCO release when
 #'   \code{motif_search_engine = "hocomoco"}: \code{"v12"} (default,
 #'   CORE bundle) or \code{"v11"} (full mono bundle). Ignored otherwise.
-#' @param hocomoco_species \code{"human"} (default) or \code{"mouse"} when
-#'   \code{motif_search_engine = "hocomoco"}. Ignored otherwise.
+#' @param hocomoco_species HOCOMOCO mouse / human bundle selector when
+#'   \code{motif_search_engine = "hocomoco"}. \code{NULL} (default) =
+#'   auto-derive from \code{species}: \code{"homo_sapiens"} maps to
+#'   \code{"human"}, \code{"mus_musculus"} maps to \code{"mouse"}. Pass
+#'   a literal value (\code{"human"} or \code{"mouse"}) to override the
+#'   auto-derivation. Unknown species fall back to \code{"human"} with a
+#'   warning. Ignored entirely when
+#'   \code{motif_search_engine = "jaspar"}.
 #'
 #' @param save_plots Write the PDF deck to \code{out_dir} (default TRUE).
 #'   Set FALSE for a fast headless run that only computes the result list.
@@ -3903,7 +3909,13 @@ run_caspex <- function(
     motif_search_engine   = c("jaspar", "hocomoco"),
     # HOCOMOCO source selectors. Ignored when motif_search_engine == "jaspar".
     hocomoco_version      = "v12",
-    hocomoco_species      = "human",
+    # `hocomoco_species`: NULL (default) = auto-derive from `species`
+    # (homo_sapiens -> "human", mus_musculus -> "mouse"). Pass an explicit
+    # value ("human" / "mouse") to override. Unknown species fall back to
+    # "human" with a warning. Symmetric with the chipatlas_genome
+    # auto-derivation; non-human users shouldn't need to set both species
+    # and hocomoco_species to make HOCOMOCO scan the right bundle.
+    hocomoco_species      = NULL,
     save_plots    = TRUE,
     plot_width    = 10,
     plot_height   = 8,
@@ -3925,6 +3937,27 @@ run_caspex <- function(
   position_stability <- match.arg(position_stability)
   motif_score_weight <- match.arg(motif_score_weight)
   motif_search_engine <- match.arg(motif_search_engine)
+  # Auto-derive hocomoco_species from the run's `species` argument when not
+  # explicitly set. Mirrors the chipatlas_genome derivation pattern so a
+  # mouse-experiment user passing only `species = "mus_musculus"` gets the
+  # mouse HOCOMOCO bundle without having to know an extra parameter.
+  if (motif_search_engine == "hocomoco" && is.null(hocomoco_species)) {
+    hocomoco_species <- switch(tolower(species),
+      "homo_sapiens" = "human",
+      "mus_musculus" = "mouse",
+      {
+        warning("Unknown species '", species, "' for HOCOMOCO; ",
+                "defaulting to 'human'. Pass hocomoco_species explicitly ",
+                "to override (currently only 'human' and 'mouse' bundles ",
+                "are supported by HOCOMOCO v12).")
+        "human"
+      })
+    message("  HOCOMOCO species derived from species '", species,
+            "' -> ", hocomoco_species)
+  }
+  # Defensive fallback for the JASPAR branch (where hocomoco_species is
+  # ignored anyway but downstream code reads result$hocomoco_species).
+  if (is.null(hocomoco_species)) hocomoco_species <- "human"
   motif_source <- if (motif_search_engine == "jaspar") "JASPAR"
                   else sprintf("HOCOMOCO %s (%s)", hocomoco_version,
                                hocomoco_species)

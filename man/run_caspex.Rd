@@ -54,7 +54,7 @@ run_caspex(
   motif_scan_pool = c("selected", "spatial_all"),
   motif_search_engine = c("jaspar", "hocomoco"),
   hocomoco_version = "v12",
-  hocomoco_species = "human",
+  hocomoco_species = NULL,
   save_plots = TRUE,
   plot_width = 10,
   plot_height = 8,
@@ -270,8 +270,14 @@ kept identical across engines.}
 \code{motif_search_engine = "hocomoco"}: \code{"v12"} (default,
 CORE bundle) or \code{"v11"} (full mono bundle). Ignored otherwise.}
 
-\item{hocomoco_species}{\code{"human"} (default) or \code{"mouse"} when
-\code{motif_search_engine = "hocomoco"}. Ignored otherwise.}
+\item{hocomoco_species}{HOCOMOCO mouse / human bundle selector when
+\code{motif_search_engine = "hocomoco"}. \code{NULL} (default) =
+auto-derive from \code{species}: \code{"homo_sapiens"} maps to
+\code{"human"}, \code{"mus_musculus"} maps to \code{"mouse"}. Pass
+a literal value (\code{"human"} or \code{"mouse"}) to override the
+auto-derivation. Unknown species fall back to \code{"human"} with a
+warning. Ignored entirely when
+\code{motif_search_engine = "jaspar"}.}
 
 \item{save_plots}{Write the PDF deck to \code{out_dir} (default TRUE).
 Set FALSE for a fast headless run that only computes the result list.}
