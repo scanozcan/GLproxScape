@@ -53,3 +53,8 @@ inst/extdata/examples/*/caspex_output*/
 
 # Claude / local agent metadata (already in .Rbuildignore for the tarball)
 .claude/
+
+# Persistent local project memory (never shipped, never pushed)
+# - Already in .Rbuildignore line 14 so excluded from the package tarball
+# - Lives only on the maintainer's local filesystem
+_dev/
