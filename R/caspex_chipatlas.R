@@ -363,7 +363,18 @@
   ens_asm     <- .ensembl_assembly_for_species(gene_info$species)
   expected_ens <- .UCSC_TO_ENSEMBL_ASSEMBLY[[chipatlas_genome]]
   if (is.na(ens_asm) || is.null(expected_ens)) return(gene_info)
-  if (identical(ens_asm, expected_ens)) return(gene_info)
+  # Strip Ensembl patch-version suffix (.p13, .p14, ...) before comparing.
+  # Ensembl returns "GRCh38.p14" for current human releases but
+  # .UCSC_TO_ENSEMBL_ASSEMBLY stores the un-patched assembly name "GRCh38".
+  # Without this strip the comparison falsely reports a mismatch for every
+  # human run, triggers an unnecessary lift-over branch, and crashes with
+  # "subscript out of bounds" inside the archive / rtracklayer fallback --
+  # silently swallowed upstream as a NULL return from fetch_chipatlas_peaks,
+  # producing the "0 peaks across 0 / 0 experiment(s)" pattern for every TF.
+  # Mouse paths are unaffected because GRCm39 / GRCm38 don't carry patch
+  # suffixes.
+  ens_asm_base <- sub("\\.p[0-9]+$", "", ens_asm)
+  if (identical(ens_asm_base, expected_ens)) return(gene_info)
 
   cache_key <- paste0(gene_info$transcript_id %||% gene_info$name, "__",
                       chipatlas_genome)
