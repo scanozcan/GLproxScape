@@ -561,7 +561,7 @@ when a specific older build is needed.
 
 If you use GLproxScape in your work, please cite:
 
-> Ozcan SC, Yildirim B, Cagiral U, Sergi B, Gonen M, Acilan C.
+> Ozcan SC, Sergi B, Yildirim B, Cagiral U, Gonen M, Acilan C.
 > **GLproxScape reconstructs spatial chromatin occupancy landscapes
 > from tiled genomic locus proteomics.** 2026.
 
