@@ -9,6 +9,9 @@
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/scanozcan/GLproxScape/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/scanozcan/GLproxScape/actions/workflows/R-CMD-check.yaml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![Data: Zenodo](https://img.shields.io/badge/data-10.5281%2Fzenodo.20337799-blue)](https://doi.org/10.5281/zenodo.20337799)
+[![Publication: TBD](https://img.shields.io/badge/publication-TBD-lightgrey)](#)
 <!-- badges: end -->
 
 Spatial reconstruction of chromatin occupancy landscapes from
@@ -524,8 +527,9 @@ end-to-end from the bundled `inst/extdata/examples/foxp2_mackenzie/`
 folder; the corresponding `run_caspex()` parameter settings live in
 the FOXP2 vignette. The other published paper analyses (Myers *et al.*
 TERT and MYC, Pizzolato *et al.* FOXQ1, Gao *et al.* mouse Ripk3)
-ship as a Zenodo companion deposit alongside the manuscript; only
-the FOXP2 example is bundled inside the package itself.
+ship as a Zenodo companion deposit alongside the manuscript
+([doi:10.5281/zenodo.20337799](https://doi.org/10.5281/zenodo.20337799));
+only the FOXP2 example is bundled inside the package itself.
 
 The `transcript = "canonical"` default in `lookup_gene()` keeps
 TSS-relative coordinates stable across Ensembl releases. For
