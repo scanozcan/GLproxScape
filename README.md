@@ -20,16 +20,6 @@ Spatial reconstruction of chromatin occupancy landscapes from
 **genomic locus proximity proteomics** (e.g. dCas9-APEX2 / CASPEX,
 C-BERST, CasID).
 
-<p align="center">
-  <img alt="GLproxScape workflow overview" src="man/figures/glproxscape-overview.png" width="900">
-</p>
-
-<p align="center">
-  <em>From CASPEX proximity labelling and per-region proteomics to a
-  deconvolved chromatin-occupancy landscape — inputs, processing, and
-  outputs at a glance.</em>
-</p>
-
 GLproxScape treats per-region enrichments from tiled-sgRNA experiments
 as indirect spatial measurements and reconstructs the latent
 chromatin-binding landscape via a Gaussian labelling-kernel forward
@@ -58,6 +48,16 @@ The package is the analysis backbone behind the GLproxScape paper
 (Ozcan *et al.* 2026) and ships a bundled reanalysis of the
 MacKenzie *et al.* (2026) FOXP2 dataset (3 sgRNAs) as an end-to-end
 example.
+
+<p align="center">
+  <img alt="GLproxScape workflow overview" src="man/figures/glproxscape-overview.png" width="900">
+</p>
+
+<p align="center">
+  <em>From CASPEX proximity labelling and per-region proteomics to a
+  deconvolved chromatin-occupancy landscape — inputs, processing, and
+  outputs at a glance.</em>
+</p>
 
 ## Install
 
