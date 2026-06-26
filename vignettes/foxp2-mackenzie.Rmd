@@ -1,8 +1,8 @@
 ---
-title: "FOXP2 promoter reanalysis (Mackenzie 2026)"
+title: "FOXP2 promoter reanalysis (MacKenzie 2026)"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{FOXP2 promoter reanalysis (Mackenzie 2026)}
+  %\VignetteIndexEntry{FOXP2 promoter reanalysis (MacKenzie 2026)}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -19,18 +19,23 @@ knitr::opts_chunk$set(
 # Overview
 
 This vignette walks through the FOXP2 promoter reanalysis from the
-GLproxScape paper, using the dataset of Mackenzie et al. (2026, *Mol Cell
+GLproxScape paper, using the dataset of MacKenzie et al. (2026, *Mol Cell
 Proteomics*): three sgRNAs tiled across the FOXP2 promoter (R1 / R2
 overlapping by ~15 bp at the anterior site, R3 ~210 bp upstream), profiled
 with dCas9-APEX2 proximity proteomics in HEK293 cells.
 
 The point of the walkthrough is to show the end-to-end pipeline:
 load inputs → run the spatial deconvolution → inspect the binding-event
-table → render the per-TF deconvolution deck. Heavy chunks
-(`run_caspex()`, `run_caspex_extras()`) are not evaluated when this
-vignette is built (they hit Ensembl, JASPAR and ChIP-Atlas over the
-network and would slow `R CMD check` to a crawl), but every line is a
-copy-paste-able recipe you can run interactively.
+table → render the per-TF deconvolution deck, the diagnostic plot pack,
+and the chromatin-factor zone deck. As of the current release a single
+`run_caspex()` call also runs the `extras` and `epigenetic` phases by
+default (set either to `FALSE` to skip), writing them to
+`<out_dir>/extras/` and `<out_dir>/epigenetic/` and returning them on
+`res$extras_result` and `res$epigenetic_result`. Heavy chunks
+(`run_caspex()` and the standalone phase functions) are not evaluated
+when this vignette is built (they hit Ensembl, JASPAR and ChIP-Atlas
+over the network and would slow `R CMD check` to a crawl), but every
+line is a copy-paste-able recipe you can run interactively.
 
 # Setup
 
@@ -40,7 +45,7 @@ library(GLproxScape)
 
 # 1. Load bundled inputs
 
-GLproxScape ships the Mackenzie FOXP2 inputs under `inst/extdata/` so
+GLproxScape ships the MacKenzie FOXP2 inputs under `inst/extdata/` so
 this walkthrough is fully self-contained.
 
 ```{r inputs}
@@ -62,7 +67,7 @@ inputs$grnas
 # 2. Anchor on the right transcript
 
 FOXP2 has many alternative promoters; the canonical Ensembl FOXP2-201
-(`ENST00000350908`) sits ~328 kb downstream of the cut sites Mackenzie
+(`ENST00000350908`) sits ~328 kb downstream of the cut sites MacKenzie
 targeted, so we anchor on the alternative transcript whose TSS sits
 right under their guide layout (`ENST00000901759`,
 chr7:114,086,317; +1185/+1188/+973 from R1/R2/R3).
@@ -81,9 +86,17 @@ res <- run_caspex(
   weight_mode      = "lfc_signed",
   pval_thresh      = 0.5,
   motif_thresh     = 0.75,
-  chipatlas        = FALSE   # set TRUE for the ChIP-Atlas overlay (~50 SRX/TF)
+  chipatlas        = FALSE,  # set TRUE for the ChIP-Atlas overlay (~50 SRX/TF)
+  extras           = TRUE,   # diagnostic plot pack    -> <out_dir>/extras/     (default TRUE)
+  epigenetic       = TRUE    # chromatin-factor deck   -> <out_dir>/epigenetic/ (default TRUE)
 )
 ```
+
+`extras` and `epigenetic` are shown explicitly here for clarity, but
+both default to `TRUE` — a bare `run_caspex()` call already produces
+both downstream decks. Set either to `FALSE` to skip it, and pass
+phase-specific options via `extras_args = list(...)` /
+`epigenetic_args = list(...)`.
 
 # 4. Inspect the result
 
@@ -91,7 +104,8 @@ The list returned by `run_caspex()` exposes (among other things)
 `binding_events` (one row per called event), `spatial_df` (one row per
 spatially-modelled TF), `pos_map` (gRNA TSS-relative positions),
 `promoter_info` (the sequence and TSS offset), and `motif_results` (per-TF
-JASPAR scan).
+JASPAR scan), plus `extras_result` and `epigenetic_result` from the two
+downstream phases when they are enabled.
 
 ```{r inspect, eval = FALSE}
 # Top motif-anchored events, sorted by amplitude
@@ -105,15 +119,33 @@ res$binding_events[res$binding_events$tf == "MEIS1",
                    c("position", "weight", "n_motifs_merged", "motif_based")]
 ```
 
-# 5. Diagnostic deck
+# 5. Diagnostic extras and chromatin-factor deck
 
-The full plot pack (motif-vs-NNLS scatter, TF co-occurrence triangle,
-sigma sensitivity, jackknife stability, etc.) is one call:
+Because `extras = TRUE` and `epigenetic = TRUE` are the defaults, the
+`run_caspex()` call above already produced both downstream decks:
+
+- the **diagnostic plot pack** (motif-vs-NNLS scatter, TF co-occurrence
+  triangle, sigma sensitivity, jackknife stability, etc.) under
+  `<out_dir>/extras/`, returned on `res$extras_result`;
+- the **zone-based chromatin-factor deck** for readers / writers /
+  erasers / remodellers that lack a sequence-specific motif — plus the
+  histone-marks locus map and, when the EpiGenes complex table is
+  available, a per-complex co-localisation deck — under
+  `<out_dir>/epigenetic/`, returned on `res$epigenetic_result`.
+
+Both phase functions are also exported, so you can re-run just one phase
+against an existing `res` object without recomputing the main TF deck —
+handy while tuning phase-specific parameters:
 
 ```{r extras, eval = FALSE}
 extras <- run_caspex_extras(
   res,
   out_dir = file.path(res$out_dir, "extras")
+)
+
+epi <- run_caspex_epigenetic(
+  res,
+  out_dir = file.path(res$out_dir, "epigenetic")
 )
 ```
 
@@ -149,7 +181,7 @@ plotting the three event sets side-by-side.
 # Citing GLproxScape
 
 If you use GLproxScape in your work, please cite Ozcan et al. (in
-preparation) and Mackenzie et al. 2026 for the underlying dataset.
+preparation) and MacKenzie et al. 2026 for the underlying dataset.
 
 # Session info
 
