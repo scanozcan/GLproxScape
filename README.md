@@ -44,7 +44,7 @@ against independent public ChIP-seq peaks for orthogonal validation.
 
 The package is the analysis backbone behind the GLproxScape paper
 (Ozcan *et al.* 2026) and ships a bundled reanalysis of the
-Mackenzie *et al.* (2026) FOXP2 dataset (3 sgRNAs) as an end-to-end
+MacKenzie *et al.* (2026) FOXP2 dataset (3 sgRNAs) as an end-to-end
 example.
 
 ## Install
@@ -58,19 +58,27 @@ remotes::install_github("scanozcan/GLproxScape", build_vignettes = TRUE)
 `vignette("foxp2-mackenzie", package = "GLproxScape")` is available;
 drop it for a faster install if you don't need the vignette HTML.
 
+**Requirements.** `run_caspex()` queries live web services on every
+run: Ensembl (gene lookup + promoter sequence) and JASPAR (motif
+PWMs), so an internet connection is required. Optional services are
+fetched only when enabled and cached locally after the first call —
+ChIP-Atlas peaks (`chipatlas = TRUE`) and the HOCOMOCO bundle
+(`motif_search_engine = "hocomoco"`), both cached under
+`tools::R_user_dir("caspex", "cache")`.
+
 ## Quick start
 
 ```r
 library(GLproxScape)
 
-# Use the bundled FOXP2 example dataset (Mackenzie et al., 2026)
+# Use the bundled FOXP2 example dataset (MacKenzie et al., 2026)
 inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
                           package = "GLproxScape")
 inputs <- load_caspex_inputs(inputs_dir)
 
 res <- run_caspex(
   gene             = "FOXP2",
-  transcript       = "ENST00000901759",   # Mackenzie's HEK293 active TSS1
+  transcript       = "ENST00000901759",   # MacKenzie's HEK293 active TSS1
   grnas            = inputs$grnas,
   data_files       = inputs$data_files,
   upstream         = 200,
@@ -170,6 +178,15 @@ Notes:
 
 ### `Region*.txt` — the per-region proteomics tables
 
+Each table is the **differential proteomics result for one sgRNA
+region** — the enrichment of that region's proximity-labelled
+pulldown against a control (e.g. a no-guide / non-targeting
+condition), computed by you upstream of GLproxScape (the bundled
+FOXP2 example uses a per-sgRNA logFC vs. no-guide; see the paper for
+the full design). GLproxScape consumes these per-region contrasts as
+its spatial measurements — it does not compute differential
+enrichment from raw abundances for you.
+
 Tab-separated tables with at minimum a protein-name column, a logFC
 column, and a p-value column. An optional moderated-t column is also
 recognised. Column-name matching is case-insensitive and tolerates
@@ -205,6 +222,53 @@ The protein column should hold HGNC symbols. Anything else (Ensembl
 IDs, UniProt accessions) won't intersect cleanly with the JASPAR
 motif database or the bundled TF / EpiFactors universes.
 
+### Picking the right transcript anchor with `check_transcripts()`
+
+Do this **before** running the pipeline — the transcript you pick
+sets the TSS that every coordinate is measured from. Most genes have
+several alternative promoters, and the canonical Ensembl transcript
+isn't always the one your sgRNAs target. Running against the wrong
+transcript can silently produce zero sgRNA matches (and therefore
+zero meaningful predictions). Use `check_transcripts()` to choose
+the `transcript = "ENST..."` argument:
+
+```r
+library(GLproxScape)
+df <- check_transcripts(
+  gene          = "YOUR_GENE",
+  manifest_path = "my_gene_analysis/inputs"
+)
+head(df, 5)
+```
+
+The function prints a per-transcript table to the console — one row
+per Ensembl transcript, with the TSS coordinate, biotype, canonical
+flag, and which sgRNAs matched at which TSS-relative bp position. It
+finishes with a one-line recommendation like:
+
+```
+=== Recommendation ===
+Best transcript: ENST00000XXXXXXX  (N / N sgRNAs matched)
+Use in run_caspex():  transcript = "ENST00000XXXXXXX"
+```
+
+Paste the recommended ENST into `run_caspex(transcript = ...)` and
+you're done.
+
+The recommendation just picks the transcript with the most sgRNA
+matches — usually right, but not always. The canonical Ensembl
+transcript isn't necessarily the one your experiment targeted: a
+gene can have several promoters, and the one active in your cell
+type may sit on a non-canonical alt-promoter far from the canonical
+TSS. (FOXP2's HEK293 "active TSS1" (MacKenzie *et al.*, 2026), for
+example, sits hundreds of kb upstream of the canonical FOXP2-201
+TSS.) You know which promoter your sgRNAs were designed against, so
+when the recommendation looks off, inspect the full data.frame and
+pick the ENST whose TSS coordinate places your sgRNAs where you
+designed them to land. If no transcript matches any sgRNAs,
+double-check the HGNC symbol, the species, and whether your sgRNA
+sequences come from the genome build Ensembl is currently serving.
+
 ### Running the analysis
 
 Once the folder is laid out, the runner is short. From an R session
@@ -233,6 +297,18 @@ res <- run_caspex(
 )
 ```
 
+**Setting the promoter window.** `upstream` and `downstream` define
+the analysis window as `[-upstream, +downstream]` bp around the TSS
+of the chosen transcript. The window must span the genomic stretch
+your sgRNAs tile across — any sgRNA whose match position falls
+outside it is silently dropped, the same failure mode as picking the
+wrong transcript. The `check_transcripts()` table above reports each
+sgRNA's TSS-relative bp position for your chosen ENST; size the
+window to comfortably bracket that range (the example's asymmetric
+`3250 / 100` simply reflects sgRNAs tiling upstream of the TSS).
+There is no single right value — match it to where your guides sit,
+not to the defaults.
+
 `extras` and `epigenetic` are TRUE by default; set either to `FALSE`
 to skip the corresponding phase. Pass phase-specific parameters via
 `extras_args = list(...)` / `epigenetic_args = list(...)` without
@@ -242,49 +318,36 @@ After this, `my_gene_analysis/caspex_output/` contains the
 binding-deconvolution PDF, the per-region heatmap, the gRNA-positions
 plot, and the predictions CSVs.
 
-### Picking the right transcript anchor with `check_transcripts()`
+### Reading the output
 
-Most genes have several alternative promoters, and the canonical
-Ensembl transcript isn't always the one your sgRNAs target. Running
-the pipeline against the wrong transcript can silently produce zero
-sgRNA matches (and therefore zero meaningful predictions). Use
-`check_transcripts()` BEFORE picking the `transcript = "ENST..."`
-argument:
+The primary result is the binding-events table — written to CSV and
+returned as `res$binding_events`. One row per predicted binding event:
 
 ```r
-library(GLproxScape)
-df <- check_transcripts(
-  gene          = "YOUR_GENE",
-  manifest_path = "my_gene_analysis/inputs"
-)
-head(df, 5)
+head(res$binding_events[order(-res$binding_events$weight), ], 10)
 ```
 
-The function prints a per-transcript table to the console — one row
-per Ensembl transcript, with the TSS coordinate, biotype, canonical
-flag, and which sgRNAs matched at which TSS-relative bp position. It
-finishes with a one-line recommendation like:
+Key columns:
+- `tf` — the predicted factor (HGNC symbol).
+- `position` — **TSS-relative bp** of the event: negative is
+  upstream of the TSS, positive is downstream. This is the same
+  coordinate frame as the `check_transcripts()` sgRNA positions, so
+  events land in the span your guides tile.
+- `weight` — the deconvolved event amplitude (recovered occupancy).
+  Higher = stronger predicted binding; rank by this to read off the
+  top calls.
+- `motif_based` — `TRUE` if the event is anchored to a JASPAR/HOCOMOCO
+  motif hit (sequence-specific TF path), `FALSE` if it came from the
+  no-motif peak detector.
+- `distance_to_nearest_grna` / `local_coverage` — how far the event
+  sits from the nearest sgRNA and the labelling coverage there;
+  events far from any guide or in low-coverage gaps are less reliable.
 
-```
-=== Recommendation ===
-Best transcript: ENST00000XXXXXXX  (N / N sgRNAs matched)
-Use in run_caspex():  transcript = "ENST00000XXXXXXX"
-```
-
-Paste the recommended ENST into `run_caspex(transcript = ...)` and
-you're done.
-
-The recommendation just picks the transcript with the most sgRNA
-matches — usually right, but not always. The canonical Ensembl
-transcript isn't necessarily the one your experiment targeted:
-FOXP2's HEK293 "active TSS1" (Mackenzie *et al.*, 2026), for
-example, sits on a non-canonical alt-promoter hundreds of kb
-upstream of the canonical FOXP2-201 TSS. When the recommendation
-looks off, inspect the full data.frame and pick the ENST whose TSS
-coordinate places your sgRNAs where the original publication says
-they sit. If no transcript matches any sgRNAs, double-check the
-HGNC symbol, the species, and whether your sgRNA sequences come
-from the genome build Ensembl is currently serving.
+The chromatin-factor (zone-based) predictions for readers/writers/
+erasers/remodellers live separately on `res$epigenetic_result` and
+under `<out_dir>/epigenetic/`. The deconvolution PDF visualises the
+same events as bubbles along the promoter; the per-region heatmap and
+gRNA-positions plot are diagnostics for the underlying signal.
 
 ## `run_caspex()` parameter reference
 
@@ -444,7 +507,7 @@ this as a quick lookup; the same content lives (with longer prose) in
 
 The package ships one end-to-end example dataset under
 `inst/extdata/examples/foxp2_mackenzie/` — a reanalysis of
-Mackenzie *et al.* (2026) at the FOXP2 promoter using 3 sgRNAs.
+MacKenzie *et al.* (2026) at the FOXP2 promoter using 3 sgRNAs.
 Resolve the path at runtime with
 `system.file("extdata/examples/foxp2_mackenzie", package = "GLproxScape")`.
 The folder is a self-contained input bundle: a `grnas.tsv` manifest
@@ -522,7 +585,7 @@ mathematical framing for every step.
 
 ## Reproducibility
 
-The Mackenzie FOXP2 analysis reported in the paper is reproducible
+The MacKenzie FOXP2 analysis reported in the paper is reproducible
 end-to-end from the bundled `inst/extdata/examples/foxp2_mackenzie/`
 folder; the corresponding `run_caspex()` parameter settings live in
 the FOXP2 vignette. The other published paper analyses (Myers *et al.*
@@ -533,7 +596,7 @@ only the FOXP2 example is bundled inside the package itself.
 
 The `transcript = "canonical"` default in `lookup_gene()` keeps
 TSS-relative coordinates stable across Ensembl releases. For
-datasets that target alternative promoters — e.g. Mackenzie FOXP2's
+datasets that target alternative promoters — e.g. MacKenzie FOXP2's
 HEK293 "active TSS1", which sits on a non-canonical alt-promoter
 rather than the canonical FOXP2-201 TSS — pin the right ENST ID
 explicitly (`transcript = "ENST00000901759"`); the diagnostic helper
