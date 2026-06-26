@@ -50,7 +50,7 @@ MacKenzie *et al.* (2026) FOXP2 dataset (3 sgRNAs) as an end-to-end
 example.
 
 <p align="center">
-  <img alt="GLproxScape workflow overview" src="man/figures/glproxscape-overview.png" width="900">
+  <img alt="GLproxScape workflow overview" src="man/figures/glproxscape-overview.svg" width="900">
 </p>
 
 <p align="center">
