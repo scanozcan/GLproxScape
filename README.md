@@ -441,9 +441,21 @@ this as a quick lookup; the same content lives (with longer prose) in
 
 #### Region-weight mode
 
-- `weight_mode` = `"z"` — `"z"` (signed z from p-value, default) |
-  `"mod_t"` (limma moderated t) | `"lfc_pos"` | `"lfc_signed"` |
-  `"lfc_x_negp"`.
+- `weight_mode` = `"z"` — how each region's per-protein weight is
+  computed from its `logFC` / p-value. The positive part of the weight
+  drives spatial placement (enrichment only). Options:
+  - `"z"` *(default, recommended)* — signed z from the p-value:
+    `sign(logFC) × qnorm(p / 2, lower.tail = FALSE)`. Keeps the weight
+    scale consistent across datasets with or without a `t` column.
+  - `"mod_t"` — limma moderated t (the `t` column) when present and
+    non-`NA`, else falls back to signed z. Kept for forensic
+    comparison; the t scale is much wider than z and can inflate the
+    smoothed-signal magnitude without changing event rank-order.
+  - `"lfc_pos"` — effect size only, no significance: `max(logFC, 0)`.
+  - `"lfc_signed"` — raw `logFC`, sign preserved (allows negative).
+  - `"lfc_x_negp"` — legacy logFC × −log10(p):
+    `max(logFC, 0) × (−log10(p))` (p floored at `1e-300`). Enrichment
+    only; "negp" is the negative log10 p-value.
 - `signal_weight` = `NULL` — back-compat alias; if non-NULL overrides
   `weight_mode` for the signal track only.
 
