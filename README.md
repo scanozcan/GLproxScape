@@ -1,8 +1,10 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)"  srcset="man/figures/GLproxScape-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="man/figures/GLproxScape-light.svg">
-  <img alt="GLproxScape" src="man/figures/GLproxScape-light.svg" width="360">
-</picture>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)"  srcset="man/figures/GLproxScape-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="man/figures/GLproxScape-light.svg">
+    <img alt="GLproxScape" src="man/figures/GLproxScape-light.svg" width="360">
+  </picture>
+</p>
 
 # GLproxScape
 
