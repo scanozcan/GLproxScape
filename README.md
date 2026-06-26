@@ -655,6 +655,9 @@ If you use GLproxScape in your work, please cite:
 > **GLproxScape reconstructs spatial chromatin occupancy landscapes
 > from tiled genomic locus proteomics.** 2026.
 
+This citation will be updated with the full publication details once the
+paper is published.
+
 ## License
 
 [MIT](LICENSE). See [LICENSE.md](LICENSE.md) for the full text.
