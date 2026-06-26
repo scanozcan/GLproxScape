@@ -34,7 +34,10 @@ paths:
   factors. Non-negative least squares against a position-weight-matrix
   basis (JASPAR by default, HOCOMOCO v12 optional via
   `motif_search_engine`) recovers discrete binding events with bp-level
-  positions and per-event amplitudes.
+  positions and per-event amplitudes. TFs with no available binding
+  motif fall back to peak detection on the spatial signal *s(x)*, so
+  they still receive position predictions (flagged `motif_based = FALSE`
+  in the events table).
 * **Zone-based reconstruction** for epigenetic factors that lack
   defined DNA-binding motifs. Broad
   occupancy zones are detected directly on the labelling intensity,
