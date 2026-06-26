@@ -35,8 +35,8 @@ paths:
   basis (JASPAR by default, HOCOMOCO v12 optional via
   `motif_search_engine`) recovers discrete binding events with bp-level
   positions and per-event amplitudes.
-* **Zone-based reconstruction** for chromatin readers, writers,
-  erasers, and remodellers that lack defined DNA-binding motifs. Broad
+* **Zone-based reconstruction** for epigenetic factors that lack
+  defined DNA-binding motifs. Broad
   occupancy zones are detected directly on the labelling intensity,
   enabling recovery of overlapping members of multi-subunit complexes
   (e.g. MLL4/WBP7).
@@ -355,9 +355,8 @@ Key columns:
   sits from the nearest sgRNA and the labelling coverage there;
   events far from any guide or in low-coverage gaps are less reliable.
 
-The chromatin-factor (zone-based) predictions for readers/writers/
-erasers/remodellers live separately on `res$epigenetic_result` and
-under `<out_dir>/epigenetic/`. The deconvolution PDF visualises the
+The zone-based predictions for epigenetic factors live separately on
+`res$epigenetic_result` and under `<out_dir>/epigenetic/`. The deconvolution PDF visualises the
 same events as bubbles along the promoter; the per-region heatmap and
 gRNA-positions plot are diagnostics for the underlying signal.
 
@@ -598,8 +597,8 @@ The pipeline runs in one call (`run_caspex`) that internally chains:
    co-occurrence triangle, and other diagnostic plots in
    `<out_dir>/extras/`. Skipped when `extras = FALSE`.
 10. **Chromatin-factor zone deck** — `run_caspex_epigenetic()` runs
-    the zone-based path for readers / writers / erasers / remodellers
-    that lack a sequence-specific motif, plus the histone-marks
+    the zone-based path for epigenetic factors that lack a
+    sequence-specific motif, plus the histone-marks
     locus map and (when both EpiGenes CSVs are bundled or supplied) a
     per-complex deck showing co-localising members. Output in
     `<out_dir>/epigenetic/`. Skipped when `epigenetic = FALSE`.
