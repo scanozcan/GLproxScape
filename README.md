@@ -27,22 +27,23 @@ model. Each guide's biotinylation footprint is modelled as a Gaussian
 cone (default σ = 300 bp); per-region enrichment values are
 forward-smeared into a continuous spatial track *s(x)*, normalised by
 guide coverage *C(x)* to recover an occupancy estimate β(x) = s(x) /
-max(C(x), c_min · max C), and then routed through two analytical
-paths:
+max(C(x), c_min · max C). Each protein is classified against curated
+transcription-factor and chromatin-regulator lists and routed through
+one of three analytical paths:
 
-* **Motif-anchored deconvolution** for sequence-specific transcription
-  factors. Non-negative least squares against a position-weight-matrix
-  basis (JASPAR by default, HOCOMOCO v12 optional via
-  `motif_search_engine`) recovers discrete binding events with bp-level
-  positions and per-event amplitudes. TFs with no available binding
-  motif fall back to peak detection on the spatial signal *s(x)*, so
-  they still receive position predictions (flagged `motif_based = FALSE`
-  in the events table).
-* **Zone-based reconstruction** for epigenetic factors that lack
-  defined DNA-binding motifs. Broad
-  occupancy zones are detected directly on the labelling intensity,
-  enabling recovery of overlapping members of multi-subunit complexes
-  (e.g. MLL4/WBP7).
+* **Motif-anchored deconvolution** for transcription factors with a
+  motif entry. Non-negative least squares against a
+  position-weight-matrix basis (JASPAR by default, HOCOMOCO v12 optional
+  via `motif_search_engine`) recovers discrete binding events with
+  bp-level positions and per-event amplitudes.
+* **Motif-free peak prediction** for transcription factors absent from
+  the motif database. Peaks are called directly on the spatial signal
+  *s(x)*, so motif-less TFs still receive position predictions (flagged
+  `motif_based = FALSE` in the events table).
+* **Zone-based detection** for chromatin regulators that lack
+  sequence-specific motifs. Broad occupancy zones are detected directly
+  on the labelling intensity, enabling recovery of overlapping members
+  of multi-subunit complexes (e.g. MLL4/WBP7).
 
 An optional ChIP-Atlas overlay cross-references each prediction
 against independent public ChIP-seq peaks for orthogonal validation.
