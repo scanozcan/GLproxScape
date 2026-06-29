@@ -8,13 +8,16 @@ emit a barplot + CSV of the top-N events.}
 rank_binding_events(result, jk_result = NULL, tol_bp = 100, top_n = 50)
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{jk_result}{(see function body).}
+\item{jk_result}{Result object returned by run_event_jackknife().}
 
-\item{tol_bp}{(see function body).}
+\item{tol_bp}{Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).}
 
-\item{top_n}{(see function body).}
+\item{top_n}{Number of top-ranked entries to retain or display.}
+}
+\value{
+A list with \code{ranked} (the ranked binding-events data.frame) and \code{plot} (a \code{ggplot}).
 }
 \description{
 Score:   conf = z_beta + z_surv
@@ -26,4 +29,10 @@ The jackknife result is accepted as an optional second argument. If
 provided, it will be merged by (tf, position) within ±tol_bp so events
 inherit their survival fraction; otherwise survival defaults to 1 and
 the ranking reduces to per-TF-normalized β.
+}
+\examples{
+\dontrun{
+ranked <- rank_binding_events(res)
+head(ranked$ranked)
+}
 }

@@ -7,13 +7,16 @@
 plot_grna_positions(pos_map, gene_info, upstream, downstream)
 }
 \arguments{
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{gene_info}{(see function body).}
+\item{gene_info}{Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).}
 
-\item{upstream}{(see function body).}
+\item{upstream}{Basepairs upstream of the TSS included in the analysis window.}
 
-\item{downstream}{(see function body).}
+\item{downstream}{Basepairs downstream of the TSS included in the analysis window.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Plot 1 — gRNA positions ruler

@@ -7,13 +7,16 @@
 plot_coverage_stack(result, tf_name, kernel_sigma = NULL, weight_mode = NULL)
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{tf_name}{(see function body).}
+\item{tf_name}{Symbol of the single transcription factor to plot.}
 
-\item{kernel_sigma}{(see function body).}
+\item{kernel_sigma}{Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.}
 
-\item{weight_mode}{(see function body).}
+\item{weight_mode}{Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Analog of B.4 (NNLS residual) for coverage-aware mode. Stacking the

@@ -13,15 +13,18 @@ plot_tf_cooccurrence(
 )
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{tol_bp}{(see function body).}
+\item{tol_bp}{Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).}
 
-\item{min_events}{(see function body).}
+\item{min_events}{Minimum number of events required to include a transcription factor.}
 
-\item{top_peak_tfs}{(see function body).}
+\item{top_peak_tfs}{Number of top motif-free peak-predicted transcription factors to display.}
 
-\item{top_tfs}{(see function body).}
+\item{top_tfs}{Number of top transcription factors to display.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 For every pair of TFs with called events, count how many events of one

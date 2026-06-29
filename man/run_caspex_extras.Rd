@@ -44,3 +44,8 @@ Auto-detects whether `result` came from a default-mode or coverage-aware
 \details{
 Steps A1-A6, B1-B3, C1-C3, D1-D3 (coverage-aware diagnostics).
 }
+\examples{
+\dontrun{
+run_caspex_extras(res)
+}
+}

@@ -13,15 +13,18 @@ run_covfloor_sensitivity(
 )
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{floors}{(see function body).}
+\item{floors}{Numeric vector of cov_floor values to sweep.}
 
-\item{tfs}{(see function body).}
+\item{tfs}{Character vector of transcription-factor symbols to include.}
 
-\item{weight_mode}{(see function body).}
+\item{weight_mode}{Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".}
 
-\item{edge_guard_frac}{(see function body).}
+\item{edge_guard_frac}{Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).}
+}
+\value{
+A data.frame of cov_floor sensitivity results (one row per TF and cov_floor value), or invisibly \code{NULL} if no events were called.
 }
 \description{
 Analog of B.2 (sigma sensitivity), but sweeping the coverage-floor

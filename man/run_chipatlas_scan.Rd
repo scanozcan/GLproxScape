@@ -19,25 +19,25 @@ run_chipatlas_scan(
 )
 }
 \arguments{
-\item{tfs}{(see function body).}
+\item{tfs}{Character vector of transcription-factor symbols to include.}
 
-\item{gene_info}{(see function body).}
+\item{gene_info}{Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).}
 
-\item{promoter_info}{(see function body).}
+\item{promoter_info}{Promoter-window sequence and coordinate record returned by fetch_promoter_seq().}
 
-\item{upstream}{(see function body).}
+\item{upstream}{Basepairs upstream of the TSS included in the analysis window.}
 
-\item{downstream}{(see function body).}
+\item{downstream}{Basepairs downstream of the TSS included in the analysis window.}
 
-\item{threshold}{(see function body).}
+\item{threshold}{ChIP-Atlas peak significance threshold as a string (e.g. "05" for the q < 1e-5 track).}
 
-\item{max_experiments}{(see function body).}
+\item{max_experiments}{Maximum number of ChIP-Atlas experiments (SRX) fetched per TF.}
 
-\item{special_interest_gene}{(see function body).}
+\item{special_interest_gene}{Factor(s) exempted from the chipatlas_max_experiments cap.}
 
-\item{special_interest_cap}{(see function body).}
+\item{special_interest_cap}{Per-factor SRX cap for special-interest genes; NULL means uncapped.}
 
-\item{quiet}{(see function body).}
+\item{quiet}{Logical; suppress progress messages when TRUE.}
 
 \item{genome}{ChIP-Atlas genome assembly code (e.g. "hg38", "mm10").
 Defaults to "hg38" for backward compatibility. Use the
@@ -49,4 +49,11 @@ named list tf -> data.frame (or NULL if no peaks in window).
 }
 \description{
 Batch fetch for a set of TFs
+}
+\examples{
+\dontrun{
+gi  <- lookup_gene("TERT")
+pi  <- fetch_promoter_seq(gi)
+res <- run_chipatlas_scan(c("CTCF", "MAZ"), gi, pi)
+}
 }

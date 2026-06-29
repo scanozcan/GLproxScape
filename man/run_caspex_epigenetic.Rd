@@ -191,3 +191,8 @@ What this function does, in order:
      (compute_chipatlas_overlap).
   6. Generate a per-factor PDF deck and write zones / spatial CSVs.
 }
+\examples{
+\dontrun{
+run_caspex_epigenetic(res)
+}
+}

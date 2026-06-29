@@ -7,9 +7,12 @@
 plot_pval_histograms(result, binwidth = 0.02)
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{binwidth}{(see function body).}
+\item{binwidth}{Histogram bin width.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Faceted p-value histogram — should be roughly uniform with a peak near 0.

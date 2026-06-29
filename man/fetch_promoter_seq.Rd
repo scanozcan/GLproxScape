@@ -32,3 +32,9 @@ List: seq (character), tss_offset (int), seq_start, seq_end, strand
 \description{
 Fetch promoter sequence from Ensembl (strand-aware, TSS-centred)
 }
+\examples{
+\dontrun{
+gi  <- lookup_gene("TERT")
+seq <- fetch_promoter_seq(gi, upstream = 2500, downstream = 500)
+}
+}

@@ -7,13 +7,16 @@
 plot_tf_profile(tf_name, long_data, pos_map, pval_thresh = 0.05)
 }
 \arguments{
-\item{tf_name}{(see function body).}
+\item{tf_name}{Symbol of the single transcription factor to plot.}
 
-\item{long_data}{(see function body).}
+\item{long_data}{Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().}
 
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{pval_thresh}{(see function body).}
+\item{pval_thresh}{Per-region significance threshold a protein must clear to enter the spatial model (default 0.05).}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Plot 6 — Single TF inspector: enrichment bars by region position

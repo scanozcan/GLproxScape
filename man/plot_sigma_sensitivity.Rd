@@ -7,7 +7,7 @@
 plot_sigma_sensitivity(sigma_result)
 }
 \arguments{
-\item{sigma_result}{(see function body).}
+\item{sigma_result}{Result object returned by run_sigma_sensitivity().}
 }
 \value{
 A patchwork ggplot assembly.

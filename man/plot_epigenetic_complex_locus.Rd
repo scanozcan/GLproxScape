@@ -17,23 +17,26 @@ plot_epigenetic_complex_locus(
 )
 }
 \arguments{
-\item{complex_info}{(see function body).}
+\item{complex_info}{Complex-membership record (members and metadata) for the factor's protein complex.}
 
-\item{zones_df}{(see function body).}
+\item{zones_df}{Epigenetic binding-zone table (tf, zone_start, zone_end, peak_beta, peak_position).}
 
-\item{sig_df_per_member}{(see function body).}
+\item{sig_df_per_member}{Per-complex-member detection/significance table used to build the deck.}
 
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{gene_info}{(see function body).}
+\item{gene_info}{Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).}
 
-\item{upstream}{(see function body).}
+\item{upstream}{Basepairs upstream of the TSS included in the analysis window.}
 
-\item{downstream}{(see function body).}
+\item{downstream}{Basepairs downstream of the TSS included in the analysis window.}
 
-\item{kernel_sigma}{(see function body).}
+\item{kernel_sigma}{Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.}
 
-\item{peak_signal_range}{(see function body).}
+\item{peak_signal_range}{Optional c(min, max) locking the inner-core colour-bar limits across a deck; NULL auto-scales per page.}
+}
+\value{
+A \code{ggplot} object (one complex's per-member zone panel).
 }
 \description{
 One row per member protein of an epigenetic complex, stacked

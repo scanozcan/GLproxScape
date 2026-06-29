@@ -11,6 +11,14 @@ inspect_tf(result, tf_name)
 
 \item{tf_name}{TF symbol to inspect}
 }
+\value{
+Invisibly, the per-TF profile \code{ggplot}; also prints a short summary to the console.
+}
 \description{
 Inspect a single TF from a completed run
+}
+\examples{
+\dontrun{
+inspect_tf(res, "MAZ")
+}
 }

@@ -24,6 +24,9 @@ ticks at the top).}
 
 \item{downstream}{bp downstream of TSS for the x-axis.}
 }
+\value{
+A \code{ggplot} object.
+}
 \description{
 Two stacked sections of six rows each. Top section: cell-type-matched
 (e.g. HEK293T) consensus peaks per mark. Bottom section: all-cell-types

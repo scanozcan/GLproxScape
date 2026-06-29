@@ -14,17 +14,20 @@ plot_motif_track(
 )
 }
 \arguments{
-\item{spatial_df}{(see function body).}
+\item{spatial_df}{Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().}
 
-\item{motif_results}{(see function body).}
+\item{motif_results}{Per-TF motif-scan results (hit positions, scores, n_hits) from the motif scan.}
 
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{promoter_info}{(see function body).}
+\item{promoter_info}{Promoter-window sequence and coordinate record returned by fetch_promoter_seq().}
 
-\item{upstream}{(see function body).}
+\item{upstream}{Basepairs upstream of the TSS included in the analysis window.}
 
-\item{downstream}{(see function body).}
+\item{downstream}{Basepairs downstream of the TSS included in the analysis window.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 One horizontal lane per TF. Inside each lane:

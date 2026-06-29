@@ -231,9 +231,9 @@ load_caspex_inputs <- function(inputs_dir = "inputs",
 # =============================================================================
 
 #' Query Ensembl REST API
-#' @param path (see function body).
-#' @param params (see function body).
-#' @param accept (see function body).
+#' @param path File-system path.
+#' @param params Named list of query parameters for the Ensembl REST request.
+#' @param accept Value of the HTTP Accept header for the request.
 #' @noRd
 ensembl_get <- function(path, params = list(), accept = "application/json") {
   url <- modify_url("https://rest.ensembl.org", path = path, query = params)
@@ -275,6 +275,11 @@ ensembl_get <- function(path, params = list(), accept = "application/json") {
 #'                   * "ENSTxxxxxxxxx": pin to the named transcript
 #'                   * NA: legacy gene-level start/end (subject to drift; not recommended)
 #' @return List: name, chr, strand, tss, start, end, species, transcript_id
+#' @examples
+#' \dontrun{
+#' gi <- lookup_gene("TERT")
+#' str(gi)
+#' }
 #' @export
 lookup_gene <- function(gene_name, species = "homo_sapiens",
                          transcript = "canonical") {
@@ -351,6 +356,11 @@ lookup_gene <- function(gene_name, species = "homo_sapiens",
 #'                   was hardcoded to "human", which silently routed every
 #'                   non-human gene to the human genome.
 #' @return List: seq (character), tss_offset (int), seq_start, seq_end, strand
+#' @examples
+#' \dontrun{
+#' gi  <- lookup_gene("TERT")
+#' seq <- fetch_promoter_seq(gi, upstream = 2500, downstream = 500)
+#' }
 #' @export
 fetch_promoter_seq <- function(gene_info, upstream = 2500, downstream = 500,
                                 species = NULL) {
@@ -396,7 +406,7 @@ fetch_promoter_seq <- function(gene_info, upstream = 2500, downstream = 500,
 # =============================================================================
 
 #' Reverse complement of a DNA string
-#' @param s (see function body).
+#' @param s DNA sequence as a character string.
 #' @noRd
 rc <- function(s) {
   map <- c(A="T",T="A",G="C",C="G",N="N")
@@ -409,7 +419,7 @@ rc <- function(s) {
 #' Handles common cases:
 #'   3' NGG PAM  (SpCas9)
 #'   5' CCN  PAM (reverse complement form)
-#' @param g (see function body).
+#' @param g gRNA protospacer sequence as a character string.
 #' @noRd
 strip_pam <- function(g) {
   g <- toupper(trimws(g))
@@ -427,8 +437,8 @@ strip_pam <- function(g) {
 }
 
 #' Find all occurrences of a pattern in a string (1-based positions)
-#' @param pattern (see function body).
-#' @param text (see function body).
+#' @param pattern Regular-expression pattern to search for.
+#' @param text Character string to search within.
 #' @noRd
 str_find_all <- function(pattern, text) {
   hits <- c()
@@ -532,9 +542,9 @@ match_all_grnas <- function(grnas, promoter_info) {
 #' principled weight for inverse-variance-weighted spatial means.  It compresses
 #' extreme p-values (p = 1e-10 -> z ~ 6.4, not 10), so one spectacular outlier
 #' cannot dominate a centroid computed from a handful of regions.
-#' @param lfc (see function body).
-#' @param pval (see function body).
-#' @param pval_floor (see function body).
+#' @param lfc Log fold-change value(s).
+#' @param pval P-value(s) to convert or threshold.
+#' @param pval_floor Lower clamp applied to p-values to keep -log10(p) finite.
 #' @noRd
 signed_z_from_p <- function(lfc, pval, pval_floor = .Machine$double.xmin) {
   pval <- pmax(pmin(pval, 1), pval_floor)
@@ -562,8 +572,8 @@ signed_z_from_p <- function(lfc, pval, pval_floor = .Machine$double.xmin) {
 #'   "lfc_x_negp" — legacy logFC x -log10(p).  Kept for backward compat.
 #'   "lfc_pos"    — pmax(lfc, 0).  Effect size only, no significance.
 #'   "lfc_signed" — raw lfc (allows negative).
-#' @param df (see function body).
-#' @param mode (see function body).
+#' @param df A single region's differential-statistics data.frame (name, logFC, P.Value, t).
+#' @param mode Region-weight mode; see weight_mode in run_caspex().
 #' @noRd
 compute_region_weight <- function(df, mode = c("z", "mod_t", "lfc_x_negp",
                                                 "lfc_pos", "lfc_signed")) {
@@ -598,7 +608,7 @@ compute_region_weight <- function(df, mode = c("z", "mod_t", "lfc_x_negp",
 #' @param pval_thresh   Significance cutoff
 #' @param weight_mode   Passed to compute_region_weight() (default "z")
 #' @return List with centroid, spread, composite, n_regions, etc.; or NULL
-#' @param min_lfc (see function body).
+#' @param min_lfc Floor on positive enrichment logFC for a protein to enter the model (default 0).
 #' @noRd
 compute_spatial <- function(protein_name, long_data, pos_map,
                              pval_thresh = 0.05,
@@ -720,6 +730,10 @@ run_spatial_model <- function(long_data, pos_map,
 #' @param tf_name  HGNC symbol
 #' @param host     JASPAR API host (default current canonical mirror)
 #' @return List with id, name, pwm (4×L matrix, rows=ACGT), length; or NULL
+#' @examples
+#' \dontrun{
+#' pwm <- fetch_jaspar_pwm("CTCF")
+#' }
 #' @export
 fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
   # Cache lookup \u2014 key by uppercased TF + host to avoid trivial mismatches.
@@ -835,8 +849,8 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
 #'
 #' Returns a character vector — try each URL in order until one works
 #' (HOCOMOCO has moved paths between releases).
-#' @param version (see function body).
-#' @param species (see function body).
+#' @param version Database version tag (e.g. HOCOMOCO "v12").
+#' @param species Species identifier, e.g. "homo_sapiens" or "mus_musculus".
 #' @noRd
 .hocomoco_url <- function(version, species) {
   stopifnot(species %in% c("human", "mouse"))
@@ -880,8 +894,8 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
 #'
 #' Uses \code{tools::R_user_dir} so the cache survives across sessions and
 #' is OS-appropriate.
-#' @param version (see function body).
-#' @param species (see function body).
+#' @param version Database version tag (e.g. HOCOMOCO "v12").
+#' @param species Species identifier, e.g. "homo_sapiens" or "mus_musculus".
 #' @noRd
 .hocomoco_cache_path <- function(version, species) {
   base <- tools::R_user_dir("caspex", which = "cache")
@@ -906,6 +920,10 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
 #'                  the network. Use this if the automatic download is
 #'                  blocked.
 #' @return The path to the cached bundle (invisibly).
+#' @examples
+#' \dontrun{
+#' download_hocomoco_bundle(version = "v12", species = "human")
+#' }
 #' @export
 download_hocomoco_bundle <- function(version = "v12", species = "human",
                                       force = FALSE, from_file = NULL) {
@@ -1034,7 +1052,7 @@ parse_meme_file <- function(path) {
 #'
 #' Handles both v11 (\code{SOX2_HUMAN.H11MO.0.A}) and v12
 #' (\code{SOX2.H12CORE.0.P.B}) naming conventions.
-#' @param motif_id (see function body).
+#' @param motif_id JASPAR or HOCOMOCO matrix identifier for the motif.
 #' @noRd
 .extract_gene_symbol <- function(motif_id) {
   g <- strsplit(motif_id, "\\.")[[1]][1]
@@ -1045,7 +1063,7 @@ parse_meme_file <- function(path) {
 #' HOCOMOCO quality rating from the trailing letter of the motif id.
 #'
 #' Lower is better (A = 1, B = 2, ...). Missing or non-letter -> 99 (worst).
-#' @param motif_id (see function body).
+#' @param motif_id JASPAR or HOCOMOCO matrix identifier for the motif.
 #' @noRd
 .extract_quality <- function(motif_id) {
   parts <- strsplit(motif_id, "\\.")[[1]]
@@ -1068,6 +1086,10 @@ parse_meme_file <- function(path) {
 #' @param version HOCOMOCO release: \code{"v12"} (default) or \code{"v11"}.
 #' @param species \code{"human"} (default) or \code{"mouse"}.
 #' @return Named list of motif entries indexed by uppercase gene symbol.
+#' @examples
+#' \dontrun{
+#' pwms <- load_hocomoco_pwms(version = "v12", species = "human")
+#' }
 #' @export
 load_hocomoco_pwms <- function(version = "v12", species = "human") {
   key <- paste(version, species, sep = "_")
@@ -1105,6 +1127,8 @@ load_hocomoco_pwms <- function(version = "v12", species = "human") {
 #' force = TRUE)} to drop any stale in-memory representation.
 #'
 #' @return \code{TRUE}, invisibly.
+#' @examples
+#' clear_hocomoco_memory_cache()
 #' @export
 clear_hocomoco_memory_cache <- function() {
   rm(list = ls(.hocomoco_env), envir = .hocomoco_env)
@@ -1123,6 +1147,10 @@ clear_hocomoco_memory_cache <- function() {
 #' @param species \code{"human"} (default) or \code{"mouse"}.
 #' @return PWM list \code{(id, name, pwm, len)}, or \code{NULL} if the TF
 #'   is absent from the loaded HOCOMOCO bundle.
+#' @examples
+#' \dontrun{
+#' pwm <- fetch_hocomoco_pwm("CTCF")
+#' }
 #' @export
 fetch_hocomoco_pwm <- function(tf_name, version = "v12", species = "human") {
   pwms <- load_hocomoco_pwms(version, species)
@@ -1141,6 +1169,11 @@ fetch_hocomoco_pwm <- function(tf_name, version = "v12", species = "human") {
 #' @param version HOCOMOCO release: \code{"v12"} (default) or \code{"v11"}.
 #' @param species \code{"human"} (default) or \code{"mouse"}.
 #' @return Character vector of uppercase gene symbols, sorted alphabetically.
+#' @examples
+#' \dontrun{
+#' tfs <- list_hocomoco_tfs()
+#' head(tfs)
+#' }
 #' @export
 list_hocomoco_tfs <- function(version = "v12", species = "human") {
   sort(names(load_hocomoco_pwms(version, species)))
@@ -1157,6 +1190,10 @@ list_hocomoco_tfs <- function(version = "v12", species = "human") {
 #' @param species  \code{"human"} (default) or \code{"mouse"}.
 #' @return Invisibly, a data.frame with columns \code{tf} and
 #'   \code{in_hocomoco} (logical).
+#' @examples
+#' \dontrun{
+#' check_hocomoco_coverage(c("CTCF", "MAZ", "YY1"))
+#' }
 #' @export
 check_hocomoco_coverage <- function(tf_names,
                                      version = "v12", species = "human") {
@@ -1183,8 +1220,8 @@ check_hocomoco_coverage <- function(tf_names,
 #' skip behaviour exactly. Runtime on 3 kb promoters × 12-mer PWMs drops
 #' from ~100 ms per call to ~1 ms, which compounds across run_motif_scan
 #' (two strands × dozens of TFs).
-#' @param seq_chars (see function body).
-#' @param pwm (see function body).
+#' @param seq_chars Promoter sequence as a character vector of single bases.
+#' @param pwm Position weight matrix (4 x motif-length) used for scanning.
 #' @noRd
 score_pwm_positions <- function(seq_chars, pwm) {
   L  <- ncol(pwm)
@@ -1468,10 +1505,10 @@ compute_coverage <- function(pos_map,
 
 #' Simple local-maxima peak detection with minimum separation.
 #' Greedy selection in descending height; preserves valleys.
-#' @param x (see function body).
-#' @param y (see function body).
-#' @param min_height (see function body).
-#' @param min_dist (see function body).
+#' @param x Numeric vector of TSS-relative grid positions.
+#' @param y Numeric vector of signal values evaluated on the spatial grid.
+#' @param min_height Minimum peak height for local-maximum detection.
+#' @param min_dist Minimum bp separation between detected peaks.
 #' @noRd
 find_local_maxima <- function(x, y, min_height = 0, min_dist = 150) {
   n <- length(y)
@@ -1591,27 +1628,27 @@ find_local_maxima <- function(x, y, min_height = 0, min_dist = 150) {
 #' one bubble per qualifying motif inside a contiguous above-threshold
 #' region of \eqn{\beta}. See run_caspex() for the full parameter wiring.
 #'
-#' @param tf_name (see function body).
-#' @param long_data (see function body).
-#' @param pos_map (see function body).
-#' @param motif_hits (see function body).
-#' @param x_grid (see function body).
-#' @param kernel_sigma (see function body).
-#' @param min_weight_frac (see function body).
-#' @param min_peak_dist (see function body).
-#' @param merge_dist (see function body).
-#' @param weight_mode (see function body).
-#' @param cov_floor (see function body).
-#' @param motif_scores (see function body).
-#' @param motif_score_weight (see function body).
-#' @param edge_guard_frac (see function body).
-#' @param zone_peak_frac (see function body).
-#' @param max_events_per_tf (see function body).
-#' @param merge_position (see function body).
-#' @param max_grna_distance (see function body).
-#' @param edge_grna_weight_cap (see function body).
-#' @param position_stability (see function body).
-#' @param n_bootstrap (see function body).
+#' @param tf_name Symbol of the single transcription factor to plot.
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param motif_hits Number of PWM hits for the TF within the analysis window.
+#' @param x_grid Numeric vector of TSS-relative basepair positions defining the spatial grid.
+#' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
+#' @param min_weight_frac Minimum fraction of the local peak amplitude below which predicted events are pruned (default 0.15).
+#' @param min_peak_dist Minimum bp separation between local maxima in the motif-free fallback peak detector (default 150).
+#' @param merge_dist Closely-spaced motif hits within this many bp are merged into one amplitude-weighted cluster (default 100).
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @param cov_floor Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).
+#' @param motif_scores Per-motif PWM match scores used to optionally weight event amplitude.
+#' @param motif_score_weight Whether the PWM score weights per-motif amplitude: "none" (default), "linear", or "log".
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @param zone_peak_frac Per-zone beta floor: motifs below zone_peak_frac times the zone's peak beta are dropped (default 0.50; 0 disables).
+#' @param max_events_per_tf Top-N cap on predicted events per TF after merging (default 30; Inf disables).
+#' @param merge_position How a merged motif cluster's position is reported: "argmax" (default, strongest motif) or "centroid" (amplitude-weighted mean).
+#' @param max_grna_distance Maximum bp a called event may sit from the nearest gRNA; NULL resolves to kernel_sigma at runtime, Inf disables.
+#' @param edge_grna_weight_cap Fraction in (0,1] above which an event dominated by a single boundary gRNA's labelling weight is dropped; NULL disables (default).
+#' @param position_stability Per-event position-robustness diagnostic: "wild_bootstrap" or "none" (default).
+#' @param n_bootstrap Number of wild-bootstrap draws when position_stability is enabled (default 200).
 #' @noRd
 predict_binding_events_coverage_aware <- function(
     tf_name, long_data, pos_map, motif_hits,
@@ -2218,25 +2255,25 @@ predict_binding_events_coverage_aware <- function(
 #' @param cov_floor         Relative
 #'   floor on the denominator: amplification is capped at ~ 1/cov_floor ×
 #'   the max-coverage value. Default 0.05 (~20× amplification cap).
-#' @param tfs (see function body).
-#' @param long_data (see function body).
-#' @param pos_map (see function body).
-#' @param motif_results (see function body).
-#' @param x_grid (see function body).
-#' @param kernel_sigma (see function body).
-#' @param min_weight_frac (see function body).
-#' @param min_peak_dist (see function body).
-#' @param merge_dist (see function body).
-#' @param weight_mode (see function body).
-#' @param edge_guard_frac (see function body).
-#' @param zone_peak_frac (see function body).
-#' @param max_events_per_tf (see function body).
-#' @param max_grna_distance (see function body).
-#' @param edge_grna_weight_cap (see function body).
-#' @param n_bootstrap (see function body).
-#' @param merge_position (see function body).
-#' @param position_stability (see function body).
-#' @param motif_score_weight (see function body).
+#' @param tfs Character vector of transcription-factor symbols to include.
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param motif_results Per-TF motif-scan results (hit positions, scores, n_hits) from the motif scan.
+#' @param x_grid Numeric vector of TSS-relative basepair positions defining the spatial grid.
+#' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
+#' @param min_weight_frac Minimum fraction of the local peak amplitude below which predicted events are pruned (default 0.15).
+#' @param min_peak_dist Minimum bp separation between local maxima in the motif-free fallback peak detector (default 150).
+#' @param merge_dist Closely-spaced motif hits within this many bp are merged into one amplitude-weighted cluster (default 100).
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @param zone_peak_frac Per-zone beta floor: motifs below zone_peak_frac times the zone's peak beta are dropped (default 0.50; 0 disables).
+#' @param max_events_per_tf Top-N cap on predicted events per TF after merging (default 30; Inf disables).
+#' @param max_grna_distance Maximum bp a called event may sit from the nearest gRNA; NULL resolves to kernel_sigma at runtime, Inf disables.
+#' @param edge_grna_weight_cap Fraction in (0,1] above which an event dominated by a single boundary gRNA's labelling weight is dropped; NULL disables (default).
+#' @param n_bootstrap Number of wild-bootstrap draws when position_stability is enabled (default 200).
+#' @param merge_position How a merged motif cluster's position is reported: "argmax" (default, strongest motif) or "centroid" (amplitude-weighted mean).
+#' @param position_stability Per-event position-robustness diagnostic: "wild_bootstrap" or "none" (default).
+#' @param motif_score_weight Whether the PWM score weights per-motif amplitude: "none" (default), "linear", or "log".
 #' @noRd
 predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
                                         x_grid          = seq(-2500, 500, by = 5),
@@ -2343,28 +2380,29 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
 #'            sized by NNLS weight (lower sub-lane). Events sit *under* the
 #'            histogram directly below their predicted position, with a thin
 #'            dotted connector up to the signal peak they explain.
-#' @param tf_name (see function body).
-#' @param long_data (see function body).
-#' @param pos_map (see function body).
-#' @param motif_hits (see function body).
-#' @param kernel_sigma (see function body).
-#' @param min_weight_frac (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
-#' @param weight_mode (see function body).
+#' @param tf_name Symbol of the single transcription factor to plot.
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param motif_hits Number of PWM hits for the TF within the analysis window.
+#' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
+#' @param min_weight_frac Minimum fraction of the local peak amplitude below which predicted events are pruned (default 0.15).
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
 
-#' @param cov_floor (see function body).
-#' @param edge_guard_frac (see function body).
-#' @param zone_peak_frac (see function body).
-#' @param max_events_per_tf (see function body).
-#' @param merge_position (see function body).
-#' @param max_grna_distance (see function body).
-#' @param edge_grna_weight_cap (see function body).
-#' @param n_bootstrap (see function body).
-#' @param motif_score_weight (see function body).
-#' @param position_stability (see function body).
-#' @param chipatlas_peaks (see function body).
-#' @param motif_scores (see function body).
+#' @param cov_floor Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @param zone_peak_frac Per-zone beta floor: motifs below zone_peak_frac times the zone's peak beta are dropped (default 0.50; 0 disables).
+#' @param max_events_per_tf Top-N cap on predicted events per TF after merging (default 30; Inf disables).
+#' @param merge_position How a merged motif cluster's position is reported: "argmax" (default, strongest motif) or "centroid" (amplitude-weighted mean).
+#' @param max_grna_distance Maximum bp a called event may sit from the nearest gRNA; NULL resolves to kernel_sigma at runtime, Inf disables.
+#' @param edge_grna_weight_cap Fraction in (0,1] above which an event dominated by a single boundary gRNA's labelling weight is dropped; NULL disables (default).
+#' @param n_bootstrap Number of wild-bootstrap draws when position_stability is enabled (default 200).
+#' @param motif_score_weight Whether the PWM score weights per-motif amplitude: "none" (default), "linear", or "log".
+#' @param position_stability Per-event position-robustness diagnostic: "wild_bootstrap" or "none" (default).
+#' @param chipatlas_peaks ChIP-Atlas peak table for the TF (srx, cell_type, start_rel, end_rel); NULL skips the overlay.
+#' @param motif_scores Per-motif PWM match scores used to optionally weight event amplitude.
+#' @return A \code{ggplot} object (the per-TF binding-deconvolution detail panel).
 #' @export
 plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
                                         kernel_sigma    = 300,
@@ -2646,10 +2684,11 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
 # =============================================================================
 
 #' Plot 1 — gRNA positions ruler
-#' @param pos_map (see function body).
-#' @param gene_info (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param gene_info Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @return A \code{ggplot} object.
 #' @export
 plot_grna_positions <- function(pos_map, gene_info, upstream, downstream) {
   valid <- pos_map[!is.na(pos_map)]
@@ -2687,11 +2726,12 @@ plot_grna_positions <- function(pos_map, gene_info, upstream, downstream) {
 #' Each TF shown as a Gaussian ridge centred on the predicted binding centroid,
 #' height proportional to composite score, width proportional to binding spread.
 #' Bars stacked in a genomic coordinate space.
-#' @param spatial_df (see function body).
-#' @param pos_map (see function body).
-#' @param top_n (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
+#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param top_n Number of top-ranked entries to retain or display.
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @return A \code{ggplot} object.
 #' @export
 plot_spatial_track <- function(spatial_df, pos_map,
                                 top_n = 25, upstream = 2500, downstream = 500) {
@@ -2779,10 +2819,11 @@ plot_spatial_track <- function(spatial_df, pos_map,
 }
 
 #' Plot 3 — Per-TF enrichment heatmap across regions
-#' @param long_data (see function body).
-#' @param spatial_df (see function body).
-#' @param pos_map (see function body).
-#' @param top_n (see function body).
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param top_n Number of top-ranked entries to retain or display.
+#' @return A \code{ggplot} object.
 #' @export
 plot_heatmap <- function(long_data, spatial_df, pos_map, top_n = 30) {
   tfs   <- head(spatial_df$protein, top_n)
@@ -2816,9 +2857,9 @@ plot_heatmap <- function(long_data, spatial_df, pos_map, top_n = 30) {
 }
 
 #' Plot 4 — GC content track for the promoter
-#' @param promoter_info (see function body).
-#' @param window (see function body).
-#' @param step (see function body).
+#' @param promoter_info Promoter-window sequence and coordinate record returned by fetch_promoter_seq().
+#' @param window Sliding-window width in bp for GC-content calculation.
+#' @param step Step size in bp between successive GC windows.
 #' @noRd
 plot_gc_track <- function(promoter_info, window = 50, step = 10) {
   seq <- promoter_info$seq
@@ -2853,12 +2894,13 @@ plot_gc_track <- function(promoter_info, window = 50, step = 10) {
 #'   - Shaded Gaussian ribbon = CasPEX spatial enrichment prediction
 #'   - Vertical ticks below = JASPAR motif hit positions
 #'   - Color convergence between ribbon peak and motif cluster = high-confidence site
-#' @param spatial_df (see function body).
-#' @param motif_results (see function body).
-#' @param pos_map (see function body).
-#' @param promoter_info (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
+#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().
+#' @param motif_results Per-TF motif-scan results (hit positions, scores, n_hits) from the motif scan.
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param promoter_info Promoter-window sequence and coordinate record returned by fetch_promoter_seq().
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @return A \code{ggplot} object.
 #' @export
 plot_motif_track <- function(spatial_df, motif_results, pos_map,
                               promoter_info, upstream = 2500, downstream = 500) {
@@ -3013,7 +3055,7 @@ plot_motif_track <- function(spatial_df, motif_results, pos_map,
 #' @param downstream     bp downstream of TSS
 #' @param title,subtitle Plot text (subtitle auto-generated if NULL)
 #' @return ggplot, or NULL if no TFs to plot
-#' @param chipatlas_peaks (see function body).
+#' @param chipatlas_peaks ChIP-Atlas peak table for the TF (srx, cell_type, start_rel, end_rel); NULL skips the overlay.
 #' @export
 plot_tf_track <- function(tfs, spatial_df, pos_map, promoter_info,
                           motif_results = NULL,
@@ -3212,10 +3254,11 @@ plot_tf_track <- function(tfs, spatial_df, pos_map, promoter_info,
 }
 
 #' Plot 6 — Single TF inspector: enrichment bars by region position
-#' @param tf_name (see function body).
-#' @param long_data (see function body).
-#' @param pos_map (see function body).
-#' @param pval_thresh (see function body).
+#' @param tf_name Symbol of the single transcription factor to plot.
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param pval_thresh Per-region significance threshold a protein must clear to enter the spatial model (default 0.05).
+#' @return A \code{ggplot} object.
 #' @export
 plot_tf_profile <- function(tf_name, long_data, pos_map, pval_thresh = 0.05) {
   df <- long_data[long_data$protein == tf_name &
@@ -3276,7 +3319,7 @@ plot_tf_profile <- function(tf_name, long_data, pos_map, pval_thresh = 0.05) {
 #' @param pval_thresh   P-value cutoff for region-specific selection
 #' @return Named character vector of TFs (deduplicated), with an attr
 #'         "source" listing common/region membership per TF.
-#' @param top_shared (see function body).
+#' @param top_shared Number of top shared-signal transcription factors to display.
 #' @noRd
 select_motif_tfs <- function(long_data, spatial_df, pos_map,
                              top_common   = 10,
@@ -3680,6 +3723,13 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'   binding_events, plots, plus run metadata (weight_mode, cov_floor,
 #'   edge_guard_frac, kernel_sigma, upstream, downstream,
 #'   chipatlas_peaks, chipatlas_threshold).
+#' @examples
+#' \dontrun{
+#' grnas      <- c(R1 = "GCTGTGGAGTTGCATGAAAA", R2 = "ACGTACGTACGTACGTACGT")
+#' data_files <- c(R1 = "Region1.txt", R2 = "Region2.txt")
+#' res <- run_caspex(gene = "TERT", grnas = grnas,
+#'                   data_files = data_files, out_dir = tempfile("caspex_"))
+#' }
 #' @export
 run_caspex <- function(
     gene,
@@ -4710,6 +4760,11 @@ run_caspex <- function(
 #'
 #' @param result   Output of run_caspex()
 #' @param tf_name  TF symbol to inspect
+#' @return Invisibly, the per-TF profile \code{ggplot}; also prints a short summary to the console.
+#' @examples
+#' \dontrun{
+#' inspect_tf(res, "MAZ")
+#' }
 #' @export
 inspect_tf <- function(result, tf_name) {
   p <- plot_tf_profile(tf_name,
@@ -4735,9 +4790,14 @@ inspect_tf <- function(result, tf_name) {
 }
 
 #' Re-run motif scan with a different TF set or threshold
-#' @param result (see function body).
-#' @param tf_names (see function body).
-#' @param threshold_frac (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param tf_names Character vector of transcription-factor symbols.
+#' @param threshold_frac Fraction-of-maximum threshold used for matching or selection.
+#' @return A named list of per-TF motif-scan results (hit positions, scores, and \code{n_hits}).
+#' @examples
+#' \dontrun{
+#' rescan_motifs(res, c("CTCF", "MAZ"))
+#' }
 #' @export
 rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
   # Honour whichever motif backend the result was originally built with so

@@ -7,9 +7,12 @@
 plot_region_correlation(result, method = "pearson")
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{method}{(see function body).}
+\item{method}{Correlation method passed to cor(), e.g. "pearson" or "spearman".}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Pearson correlation heatmap of region logFC profiles.

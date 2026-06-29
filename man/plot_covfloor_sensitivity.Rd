@@ -7,7 +7,7 @@
 plot_covfloor_sensitivity(cf_result)
 }
 \arguments{
-\item{cf_result}{(see function body).}
+\item{cf_result}{Result object returned by run_covfloor_sensitivity().}
 }
 \value{
 A ggplot.

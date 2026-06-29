@@ -7,13 +7,16 @@
 plot_heatmap(long_data, spatial_df, pos_map, top_n = 30)
 }
 \arguments{
-\item{long_data}{(see function body).}
+\item{long_data}{Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().}
 
-\item{spatial_df}{(see function body).}
+\item{spatial_df}{Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().}
 
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{top_n}{(see function body).}
+\item{top_n}{Number of top-ranked entries to retain or display.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Plot 3 — Per-TF enrichment heatmap across regions

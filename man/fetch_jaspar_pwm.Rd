@@ -25,3 +25,8 @@ Results are cached in `.caspex_pwm_cache` keyed by (TF, host) so
 repeated calls within one R session return the identical PWM. This
 keeps A/B runs (default vs coverage-aware) reproducible.
 }
+\examples{
+\dontrun{
+pwm <- fetch_jaspar_pwm("CTCF")
+}
+}

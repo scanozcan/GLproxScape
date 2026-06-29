@@ -13,15 +13,18 @@ plot_spatial_track(
 )
 }
 \arguments{
-\item{spatial_df}{(see function body).}
+\item{spatial_df}{Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().}
 
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{top_n}{(see function body).}
+\item{top_n}{Number of top-ranked entries to retain or display.}
 
-\item{upstream}{(see function body).}
+\item{upstream}{Basepairs upstream of the TSS included in the analysis window.}
 
-\item{downstream}{(see function body).}
+\item{downstream}{Basepairs downstream of the TSS included in the analysis window.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Each TF shown as a Gaussian ridge centred on the predicted binding centroid,

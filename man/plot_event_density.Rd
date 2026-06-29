@@ -13,6 +13,9 @@ plot_event_density(result, binwidth = 50, weighted = TRUE)
 
 \item{weighted}{Weight each event by its NNLS weight (default TRUE)}
 }
+\value{
+A \code{ggplot} object.
+}
 \description{
 Histogram of predicted binding-event positions across all TFs.
 }

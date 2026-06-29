@@ -22,3 +22,8 @@ Useful as a pre-flight check before \code{run_caspex(motif_search_engine
 = "hocomoco")}: reports how many of the supplied TFs are present in the
 HOCOMOCO bundle and lists the missing ones.
 }
+\examples{
+\dontrun{
+check_hocomoco_coverage(c("CTCF", "MAZ", "YY1"))
+}
+}

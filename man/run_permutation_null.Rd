@@ -8,13 +8,16 @@ model, and build an empirical null distribution of composite scores.}
 run_permutation_null(result, n_perm = 500, seed = 42, weight_mode = NULL)
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{n_perm}{(see function body).}
+\item{n_perm}{Number of permutations for the null model.}
 
-\item{seed}{(see function body).}
+\item{seed}{Random seed for reproducibility.}
 
-\item{weight_mode}{(see function body).}
+\item{weight_mode}{Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".}
+}
+\value{
+A list with \code{summary} (per-TF permutation p-values and BH FDR), \code{nulls} (the null score matrix), \code{n_perm}, and \code{weight_mode}.
 }
 \description{
 Returns a list with the observed composite per TF and the per-TF

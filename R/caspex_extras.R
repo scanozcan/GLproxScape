@@ -232,6 +232,7 @@ plot_tf_family_enrichment <- function(result, top_n = 30) {
 #' @param result   Result object
 #' @param binwidth Histogram binwidth in bp (default 50)
 #' @param weighted Weight each event by its NNLS weight (default TRUE)
+#' @return A \code{ggplot} object.
 #' @export
 plot_event_density <- function(result, binwidth = 50, weighted = TRUE) {
   ev <- result$binding_events
@@ -324,10 +325,11 @@ plot_composite_vs_specificity <- function(result, top_label = 15) {
 #'
 #' Returns a list with the observed composite per TF and the per-TF
 #' permutation p-value (= fraction of null scores >= observed).
-#' @param result (see function body).
-#' @param n_perm (see function body).
-#' @param seed (see function body).
-#' @param weight_mode (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param n_perm Number of permutations for the null model.
+#' @param seed Random seed for reproducibility.
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @return A list with \code{summary} (per-TF permutation p-values and BH FDR), \code{nulls} (the null score matrix), \code{n_perm}, and \code{weight_mode}.
 #' @export
 run_permutation_null <- function(result, n_perm = 500, seed = 42,
                                   weight_mode = NULL) {
@@ -388,8 +390,9 @@ run_permutation_null <- function(result, n_perm = 500, seed = 42,
 
 #' Plot the permutation null: per-TF observed composite overlaid on its
 #' null distribution. Shows top_n most-significant TFs.
-#' @param perm_result (see function body).
-#' @param top_n (see function body).
+#' @param perm_result Result object returned by run_permutation_null().
+#' @param top_n Number of top-ranked entries to retain or display.
+#' @return A \code{ggplot} object.
 #' @export
 plot_permutation_null <- function(perm_result, top_n = 20) {
   s <- head(perm_result$summary, top_n)
@@ -430,12 +433,13 @@ plot_permutation_null <- function(perm_result, top_n = 20) {
 #'
 #' Uses the coverage-aware deconvolution at every σ, matching the
 #' decoder that produced `result$binding_events`.
-#' @param result (see function body).
-#' @param sigmas (see function body).
-#' @param tfs (see function body).
-#' @param weight_mode (see function body).
-#' @param cov_floor (see function body).
-#' @param edge_guard_frac (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param sigmas Numeric vector of kernel_sigma values to sweep.
+#' @param tfs Character vector of transcription-factor symbols to include.
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @param cov_floor Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @return A data.frame of kernel_sigma sensitivity results (one row per TF and sigma value), or invisibly \code{NULL} if no events were called.
 #' @export
 run_sigma_sensitivity <- function(result,
                                    sigmas = c(100, 200, 250, 300, 500),
@@ -502,7 +506,7 @@ run_sigma_sensitivity <- function(result,
 #' kernel sigma.
 #'
 #' @return A patchwork ggplot assembly.
-#' @param sigma_result (see function body).
+#' @param sigma_result Result object returned by run_sigma_sensitivity().
 #' @export
 plot_sigma_sensitivity <- function(sigma_result) {
   if (is.null(sigma_result) || nrow(sigma_result) == 0)
@@ -536,12 +540,13 @@ plot_sigma_sensitivity <- function(sigma_result) {
 #'
 #' Leave-one-out re-fits use the coverage-aware deconvolution, matching
 #' the original call.
-#' @param result (see function body).
-#' @param tfs (see function body).
-#' @param tol_bp (see function body).
-#' @param weight_mode (see function body).
-#' @param cov_floor (see function body).
-#' @param edge_guard_frac (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param tfs Character vector of transcription-factor symbols to include.
+#' @param tol_bp Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @param cov_floor Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @return A data.frame of event jackknife-stability results (one row per TF and dropped region), or invisibly \code{NULL} if none.
 #' @export
 run_event_jackknife <- function(result, tfs = NULL, tol_bp = 100,
                                  weight_mode      = NULL,
@@ -598,8 +603,8 @@ run_event_jackknife <- function(result, tfs = NULL, tol_bp = 100,
 #' Visualises which TF events survive after dropping each region in turn.
 #'
 #' @return A ggplot.
-#' @param jk_result (see function body).
-#' @param top_n (see function body).
+#' @param jk_result Result object returned by run_event_jackknife().
+#' @param top_n Number of top-ranked entries to retain or display.
 #' @export
 plot_event_jackknife <- function(jk_result, top_n = 40) {
   if (is.null(jk_result) || nrow(jk_result) == 0)
@@ -713,10 +718,11 @@ plot_nnls_residual <- function(result, tf_name, kernel_sigma = 250,
 # =============================================================================
 
 #' One volcano per region, TFs highlighted.
-#' @param result (see function body).
-#' @param pval_thresh (see function body).
-#' @param lfc_thresh (see function body).
-#' @param label_top (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param pval_thresh Per-region significance threshold a protein must clear to enter the spatial model (default 0.05).
+#' @param lfc_thresh Log fold-change threshold for inclusion.
+#' @param label_top Number of top-ranked points to label on the plot.
+#' @return A \code{ggplot} object.
 #' @export
 plot_volcano_per_region <- function(result, pval_thresh = 0.05,
                                      lfc_thresh = 1, label_top = 8) {
@@ -771,8 +777,9 @@ plot_volcano_per_region <- function(result, pval_thresh = 0.05,
 # =============================================================================
 
 #' Pearson correlation heatmap of region logFC profiles.
-#' @param result (see function body).
-#' @param method (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param method Correlation method passed to cor(), e.g. "pearson" or "spearman".
+#' @return A \code{ggplot} object.
 #' @export
 plot_region_correlation <- function(result, method = "pearson") {
   ld <- result$long_data
@@ -811,8 +818,9 @@ plot_region_correlation <- function(result, method = "pearson") {
 # =============================================================================
 
 #' Faceted p-value histogram — should be roughly uniform with a peak near 0.
-#' @param result (see function body).
-#' @param binwidth (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param binwidth Histogram bin width.
+#' @return A \code{ggplot} object.
 #' @export
 plot_pval_histograms <- function(result, binwidth = 0.02) {
   ld <- result$long_data
@@ -946,11 +954,12 @@ plot_motif_vs_nnls <- function(result, tfs = NULL,
 #' Mode-agnostic: works identically for default and coverage-aware events
 #' because it only consumes the `tf` / `position` columns of
 #' `result$binding_events`.
-#' @param result (see function body).
-#' @param tol_bp (see function body).
-#' @param min_events (see function body).
-#' @param top_peak_tfs (see function body).
-#' @param top_tfs (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param tol_bp Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).
+#' @param min_events Minimum number of events required to include a transcription factor.
+#' @param top_peak_tfs Number of top motif-free peak-predicted transcription factors to display.
+#' @param top_tfs Number of top transcription factors to display.
+#' @return A \code{ggplot} object.
 #' @export
 plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
                                   top_peak_tfs = Inf,
@@ -1201,10 +1210,16 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
 #' provided, it will be merged by (tf, position) within ±tol_bp so events
 #' inherit their survival fraction; otherwise survival defaults to 1 and
 #' the ranking reduces to per-TF-normalized β.
-#' @param result (see function body).
-#' @param jk_result (see function body).
-#' @param tol_bp (see function body).
-#' @param top_n (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param jk_result Result object returned by run_event_jackknife().
+#' @param tol_bp Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).
+#' @param top_n Number of top-ranked entries to retain or display.
+#' @return A list with \code{ranked} (the ranked binding-events data.frame) and \code{plot} (a \code{ggplot}).
+#' @examples
+#' \dontrun{
+#' ranked <- rank_binding_events(res)
+#' head(ranked$ranked)
+#' }
 #' @export
 rank_binding_events <- function(result, jk_result = NULL, tol_bp = 100,
                                  top_n = 50) {
@@ -1332,11 +1347,12 @@ plot_coverage_rescue_scatter <- function(result, top_label = 15) {
 #' rescued. Lower floor = more distal rescues but more tail noise.
 #' Robust calls drift little across the sweep; calls that appear only at
 #' cov_floor ≤ 0.02 (say) should be treated as floor-sensitive.
-#' @param result (see function body).
-#' @param floors (see function body).
-#' @param tfs (see function body).
-#' @param weight_mode (see function body).
-#' @param edge_guard_frac (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param floors Numeric vector of cov_floor values to sweep.
+#' @param tfs Character vector of transcription-factor symbols to include.
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @return A data.frame of cov_floor sensitivity results (one row per TF and cov_floor value), or invisibly \code{NULL} if no events were called.
 #' @export
 run_covfloor_sensitivity <- function(result,
                                       floors = c(0.02, 0.05, 0.10, 0.20),
@@ -1396,7 +1412,7 @@ run_covfloor_sensitivity <- function(result,
 #' \eqn{\beta} is sensitive to the floor choice.
 #'
 #' @return A ggplot.
-#' @param cf_result (see function body).
+#' @param cf_result Result object returned by run_covfloor_sensitivity().
 #' @export
 plot_covfloor_sensitivity <- function(cf_result) {
   if (is.null(cf_result) || nrow(cf_result) == 0)
@@ -1432,10 +1448,11 @@ plot_covfloor_sensitivity <- function(cf_result) {
 #' what the s/C correction is doing at each event: where labeling
 #' opportunity was scarce versus where β is simply tracking strong
 #' enrichment.
-#' @param result (see function body).
-#' @param tf_name (see function body).
-#' @param kernel_sigma (see function body).
-#' @param weight_mode (see function body).
+#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param tf_name Symbol of the single transcription factor to plot.
+#' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @return A \code{ggplot} object.
 #' @export
 plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
                                  weight_mode = NULL) {
@@ -1571,6 +1588,10 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
 #'                      "volcano","correlation","pvalhist","motif_vs_beta",
 #'                      "cov_rescue","cov_floor_sweep","cov_stack"
 #' @return An invisible list of all generated objects
+#' @examples
+#' \dontrun{
+#' run_caspex_extras(res)
+#' }
 #' @export
 run_caspex_extras <- function(result,
                               out_dir        = "caspex_output/extras",

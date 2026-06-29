@@ -29,47 +29,50 @@ plot_binding_deconvolution(
 )
 }
 \arguments{
-\item{tf_name}{(see function body).}
+\item{tf_name}{Symbol of the single transcription factor to plot.}
 
-\item{long_data}{(see function body).}
+\item{long_data}{Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().}
 
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{motif_hits}{(see function body).}
+\item{motif_hits}{Number of PWM hits for the TF within the analysis window.}
 
-\item{kernel_sigma}{(see function body).}
+\item{kernel_sigma}{Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.}
 
-\item{min_weight_frac}{(see function body).}
+\item{min_weight_frac}{Minimum fraction of the local peak amplitude below which predicted events are pruned (default 0.15).}
 
-\item{upstream}{(see function body).}
+\item{upstream}{Basepairs upstream of the TSS included in the analysis window.}
 
-\item{downstream}{(see function body).}
+\item{downstream}{Basepairs downstream of the TSS included in the analysis window.}
 
-\item{weight_mode}{(see function body).}
+\item{weight_mode}{Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".}
 
-\item{cov_floor}{(see function body).}
+\item{cov_floor}{Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).}
 
-\item{edge_guard_frac}{(see function body).}
+\item{edge_guard_frac}{Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).}
 
-\item{zone_peak_frac}{(see function body).}
+\item{zone_peak_frac}{Per-zone beta floor: motifs below zone_peak_frac times the zone's peak beta are dropped (default 0.50; 0 disables).}
 
-\item{max_events_per_tf}{(see function body).}
+\item{max_events_per_tf}{Top-N cap on predicted events per TF after merging (default 30; Inf disables).}
 
-\item{merge_position}{(see function body).}
+\item{merge_position}{How a merged motif cluster's position is reported: "argmax" (default, strongest motif) or "centroid" (amplitude-weighted mean).}
 
-\item{max_grna_distance}{(see function body).}
+\item{max_grna_distance}{Maximum bp a called event may sit from the nearest gRNA; NULL resolves to kernel_sigma at runtime, Inf disables.}
 
-\item{edge_grna_weight_cap}{(see function body).}
+\item{edge_grna_weight_cap}{Fraction in (0,1] above which an event dominated by a single boundary gRNA's labelling weight is dropped; NULL disables (default).}
 
-\item{position_stability}{(see function body).}
+\item{position_stability}{Per-event position-robustness diagnostic: "wild_bootstrap" or "none" (default).}
 
-\item{n_bootstrap}{(see function body).}
+\item{n_bootstrap}{Number of wild-bootstrap draws when position_stability is enabled (default 200).}
 
-\item{chipatlas_peaks}{(see function body).}
+\item{chipatlas_peaks}{ChIP-Atlas peak table for the TF (srx, cell_type, start_rel, end_rel); NULL skips the overlay.}
 
-\item{motif_scores}{(see function body).}
+\item{motif_scores}{Per-motif PWM match scores used to optionally weight event amplitude.}
 
-\item{motif_score_weight}{(see function body).}
+\item{motif_score_weight}{Whether the PWM score weights per-motif amplitude: "none" (default), "linear", or "log".}
+}
+\value{
+A \code{ggplot} object (the per-TF binding-deconvolution detail panel).
 }
 \description{
 Layout (top -> bottom):

@@ -12,13 +12,16 @@ plot_volcano_per_region(
 )
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{pval_thresh}{(see function body).}
+\item{pval_thresh}{Per-region significance threshold a protein must clear to enter the spatial model (default 0.05).}
 
-\item{lfc_thresh}{(see function body).}
+\item{lfc_thresh}{Log fold-change threshold for inclusion.}
 
-\item{label_top}{(see function body).}
+\item{label_top}{Number of top-ranked points to label on the plot.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 One volcano per region, TFs highlighted.

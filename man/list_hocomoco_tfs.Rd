@@ -17,3 +17,9 @@ Character vector of uppercase gene symbols, sorted alphabetically.
 \description{
 List all TFs available in the loaded HOCOMOCO bundle.
 }
+\examples{
+\dontrun{
+tfs <- list_hocomoco_tfs()
+head(tfs)
+}
+}

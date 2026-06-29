@@ -15,3 +15,6 @@ Does not delete the on-disk MEME bundle; the next call to
 than re-downloading. Useful after \code{download_hocomoco_bundle(...,
 force = TRUE)} to drop any stale in-memory representation.
 }
+\examples{
+clear_hocomoco_memory_cache()
+}

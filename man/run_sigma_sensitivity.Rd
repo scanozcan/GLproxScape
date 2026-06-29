@@ -15,17 +15,20 @@ run_sigma_sensitivity(
 )
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{sigmas}{(see function body).}
+\item{sigmas}{Numeric vector of kernel_sigma values to sweep.}
 
-\item{tfs}{(see function body).}
+\item{tfs}{Character vector of transcription-factor symbols to include.}
 
-\item{weight_mode}{(see function body).}
+\item{weight_mode}{Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".}
 
-\item{cov_floor}{(see function body).}
+\item{cov_floor}{Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).}
 
-\item{edge_guard_frac}{(see function body).}
+\item{edge_guard_frac}{Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).}
+}
+\value{
+A data.frame of kernel_sigma sensitivity results (one row per TF and sigma value), or invisibly \code{NULL} if no events were called.
 }
 \description{
 Uses the coverage-aware deconvolution at every σ, matching the

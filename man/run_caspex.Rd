@@ -320,3 +320,11 @@ coverage-aware deconvolution against JASPAR PWMs, optionally overlays
 independent ChIP-Atlas peaks, and writes the result deck (motif-track
 PDF, deconvolution detail pages, CSVs) to \code{out_dir}.
 }
+\examples{
+\dontrun{
+grnas      <- c(R1 = "GCTGTGGAGTTGCATGAAAA", R2 = "ACGTACGTACGTACGTACGT")
+data_files <- c(R1 = "Region1.txt", R2 = "Region2.txt")
+res <- run_caspex(gene = "TERT", grnas = grnas,
+                  data_files = data_files, out_dir = tempfile("caspex_"))
+}
+}

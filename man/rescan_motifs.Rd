@@ -7,12 +7,20 @@
 rescan_motifs(result, tf_names, threshold_frac = 0.8)
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{tf_names}{(see function body).}
+\item{tf_names}{Character vector of transcription-factor symbols.}
 
-\item{threshold_frac}{(see function body).}
+\item{threshold_frac}{Fraction-of-maximum threshold used for matching or selection.}
+}
+\value{
+A named list of per-TF motif-scan results (hit positions, scores, and \code{n_hits}).
 }
 \description{
 Re-run motif scan with a different TF set or threshold
+}
+\examples{
+\dontrun{
+rescan_motifs(res, c("CTCF", "MAZ"))
+}
 }

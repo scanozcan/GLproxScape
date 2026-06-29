@@ -17,3 +17,8 @@ path to the cached TSV.
 \description{
 Download (if missing) and cache ChIP-Atlas experimentList.tab
 }
+\examples{
+\dontrun{
+exp <- download_chipatlas_experiment_list()
+}
+}

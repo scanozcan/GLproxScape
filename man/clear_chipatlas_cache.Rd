@@ -11,6 +11,14 @@ clear_chipatlas_cache(keep_experiment_list = TRUE)
 experimentList.tab and only purge the per-SRX BED cache. Useful between
 debug runs so you don't re-download the big metadata file every time.}
 }
+\value{
+Invisibly \code{NULL}; called for its side effect of clearing the on-disk ChIP-Atlas cache.
+}
 \description{
 Utility: clear the on-disk ChIP-Atlas cache
+}
+\examples{
+\dontrun{
+clear_chipatlas_cache()
+}
 }

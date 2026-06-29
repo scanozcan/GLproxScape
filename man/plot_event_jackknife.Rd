@@ -7,9 +7,9 @@
 plot_event_jackknife(jk_result, top_n = 40)
 }
 \arguments{
-\item{jk_result}{(see function body).}
+\item{jk_result}{Result object returned by run_event_jackknife().}
 
-\item{top_n}{(see function body).}
+\item{top_n}{Number of top-ranked entries to retain or display.}
 }
 \value{
 A ggplot.

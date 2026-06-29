@@ -38,7 +38,7 @@ label to show on the left). Defaults to TF symbol.}
 
 \item{title, subtitle}{Plot text (subtitle auto-generated if NULL)}
 
-\item{chipatlas_peaks}{(see function body).}
+\item{chipatlas_peaks}{ChIP-Atlas peak table for the TF (srx, cell_type, start_rel, end_rel); NULL skips the overlay.}
 }
 \value{
 ggplot, or NULL if no TFs to plot

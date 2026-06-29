@@ -22,33 +22,36 @@ plot_epigenetic_zone_deck(
 )
 }
 \arguments{
-\item{tf_name}{(see function body).}
+\item{tf_name}{Symbol of the single transcription factor to plot.}
 
-\item{long_data}{(see function body).}
+\item{long_data}{Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().}
 
-\item{pos_map}{(see function body).}
+\item{pos_map}{Named vector mapping each region label to its TSS-relative gRNA position in bp.}
 
-\item{zones_df}{(see function body).}
+\item{zones_df}{Epigenetic binding-zone table (tf, zone_start, zone_end, peak_beta, peak_position).}
 
-\item{kernel_sigma}{(see function body).}
+\item{kernel_sigma}{Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.}
 
-\item{upstream}{(see function body).}
+\item{upstream}{Basepairs upstream of the TSS included in the analysis window.}
 
-\item{downstream}{(see function body).}
+\item{downstream}{Basepairs downstream of the TSS included in the analysis window.}
 
-\item{weight_mode}{(see function body).}
+\item{weight_mode}{Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".}
 
-\item{zone_frac}{(see function body).}
+\item{zone_frac}{Fraction-of-peak threshold defining the outer extent of an epigenetic zone (default 0.3).}
 
-\item{inner_zone_frac}{(see function body).}
+\item{inner_zone_frac}{Fraction-of-peak threshold defining the inner core of an epigenetic zone (default 0.7).}
 
-\item{cov_floor}{(see function body).}
+\item{cov_floor}{Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).}
 
-\item{edge_guard_frac}{(see function body).}
+\item{edge_guard_frac}{Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).}
 
-\item{peak_signal_range}{(see function body).}
+\item{peak_signal_range}{Optional c(min, max) locking the inner-core colour-bar limits across a deck; NULL auto-scales per page.}
 
-\item{chipatlas_peaks}{(see function body).}
+\item{chipatlas_peaks}{ChIP-Atlas peak table for the TF (srx, cell_type, start_rel, end_rel); NULL skips the overlay.}
+}
+\value{
+A \code{ggplot} object (the per-factor epigenetic-zone panel).
 }
 \description{
 Renders one page for a single epigenetic factor with three lanes:

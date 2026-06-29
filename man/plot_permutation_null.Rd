@@ -8,9 +8,12 @@ null distribution. Shows top_n most-significant TFs.}
 plot_permutation_null(perm_result, top_n = 20)
 }
 \arguments{
-\item{perm_result}{(see function body).}
+\item{perm_result}{Result object returned by run_permutation_null().}
 
-\item{top_n}{(see function body).}
+\item{top_n}{Number of top-ranked entries to retain or display.}
+}
+\value{
+A \code{ggplot} object.
 }
 \description{
 Plot the permutation null: per-TF observed composite overlaid on its

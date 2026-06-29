@@ -15,17 +15,20 @@ run_event_jackknife(
 )
 }
 \arguments{
-\item{result}{(see function body).}
+\item{result}{The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).}
 
-\item{tfs}{(see function body).}
+\item{tfs}{Character vector of transcription-factor symbols to include.}
 
-\item{tol_bp}{(see function body).}
+\item{tol_bp}{Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).}
 
-\item{weight_mode}{(see function body).}
+\item{weight_mode}{Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".}
 
-\item{cov_floor}{(see function body).}
+\item{cov_floor}{Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).}
 
-\item{edge_guard_frac}{(see function body).}
+\item{edge_guard_frac}{Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).}
+}
+\value{
+A data.frame of event jackknife-stability results (one row per TF and dropped region), or invisibly \code{NULL} if none.
 }
 \description{
 Leave-one-out re-fits use the coverage-aware deconvolution, matching

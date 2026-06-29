@@ -61,19 +61,19 @@
 #'
 #' @return data.frame with columns: tf, zone_start, zone_end, zone_width,
 #'   peak_position, peak_beta, distance_to_nearest_grna, n_regions_supporting.
-#' @param tf_name (see function body).
-#' @param long_data (see function body).
-#' @param pos_map (see function body).
-#' @param x_grid (see function body).
-#' @param kernel_sigma (see function body).
-#' @param zone_frac (see function body).
-#' @param inner_zone_frac (see function body).
-#' @param centroid_frac (see function body).
-#' @param weight_mode (see function body).
-#' @param cov_floor (see function body).
-#' @param edge_guard_frac (see function body).
-#' @param max_grna_distance (see function body).
-#' @param edge_grna_weight_cap (see function body).
+#' @param tf_name Symbol of the single transcription factor to plot.
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param x_grid Numeric vector of TSS-relative basepair positions defining the spatial grid.
+#' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
+#' @param zone_frac Fraction-of-peak threshold defining the outer extent of an epigenetic zone (default 0.3).
+#' @param inner_zone_frac Fraction-of-peak threshold defining the inner core of an epigenetic zone (default 0.7).
+#' @param centroid_frac Fraction-of-peak threshold used to summarise a zone's centroid (default 0.7).
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @param cov_floor Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @param max_grna_distance Maximum bp a called event may sit from the nearest gRNA; NULL resolves to kernel_sigma at runtime, Inf disables.
+#' @param edge_grna_weight_cap Fraction in (0,1] above which an event dominated by a single boundary gRNA's labelling weight is dropped; NULL disables (default).
 #' @noRd
 predict_binding_zones_epigenetic <- function(
     tf_name, long_data, pos_map,
@@ -429,20 +429,21 @@ predict_binding_zones_epigenetic <- function(
 #' No motif tick lane (epigenetic factors typically have none); no MLE
 #' position track (MLE is a TF-specific diagnostic that disambiguates the
 #' "low logFC could be far binder" case for sequence-specific anchors).
-#' @param tf_name (see function body).
-#' @param long_data (see function body).
-#' @param pos_map (see function body).
-#' @param zones_df (see function body).
-#' @param kernel_sigma (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
-#' @param weight_mode (see function body).
-#' @param zone_frac (see function body).
-#' @param inner_zone_frac (see function body).
-#' @param cov_floor (see function body).
-#' @param edge_guard_frac (see function body).
-#' @param chipatlas_peaks (see function body).
-#' @param peak_signal_range (see function body).
+#' @param tf_name Symbol of the single transcription factor to plot.
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param zones_df Epigenetic binding-zone table (tf, zone_start, zone_end, peak_beta, peak_position).
+#' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
+#' @param zone_frac Fraction-of-peak threshold defining the outer extent of an epigenetic zone (default 0.3).
+#' @param inner_zone_frac Fraction-of-peak threshold defining the inner core of an epigenetic zone (default 0.7).
+#' @param cov_floor Relative floor on the coverage denominator C(x); caps inverse-coverage amplification near 1/cov_floor (default 0.05).
+#' @param edge_guard_frac Fraction-of-max-coverage floor defining the in-support region for beta, set above cov_floor to avoid spurious tile-edge peaks (default 0.25).
+#' @param chipatlas_peaks ChIP-Atlas peak table for the TF (srx, cell_type, start_rel, end_rel); NULL skips the overlay.
+#' @param peak_signal_range Optional c(min, max) locking the inner-core colour-bar limits across a deck; NULL auto-scales per page.
+#' @return A \code{ggplot} object (the per-factor epigenetic-zone panel).
 #' @export
 plot_epigenetic_zone_deck <- function(
     tf_name, long_data, pos_map, zones_df,
@@ -895,15 +896,16 @@ load_epigenes_complexes <- function(complex_csv, main_csv,
 #' (still listed in the complex's roster but absent from the
 #' proteomics data) render with their label and an "(n/d)" annotation
 #' so absence is visually distinct from absence-of-zones.
-#' @param complex_info (see function body).
-#' @param zones_df (see function body).
-#' @param sig_df_per_member (see function body).
-#' @param pos_map (see function body).
-#' @param gene_info (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
-#' @param kernel_sigma (see function body).
-#' @param peak_signal_range (see function body).
+#' @param complex_info Complex-membership record (members and metadata) for the factor's protein complex.
+#' @param zones_df Epigenetic binding-zone table (tf, zone_start, zone_end, peak_beta, peak_position).
+#' @param sig_df_per_member Per-complex-member detection/significance table used to build the deck.
+#' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
+#' @param gene_info Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
+#' @param peak_signal_range Optional c(min, max) locking the inner-core colour-bar limits across a deck; NULL auto-scales per page.
+#' @return A \code{ggplot} object (one complex's per-member zone panel).
 #' @export
 plot_epigenetic_complex_locus <- function(
     complex_info, zones_df, sig_df_per_member, pos_map, gene_info,
@@ -1093,9 +1095,9 @@ plot_epigenetic_complex_locus <- function(
 #' bp coordinates. "Union" = "any SRX with a peak at this position → mark
 #' this position as covered". Intervals are in [start_rel, end_rel] format
 #' so the plot lane can render one geom_segment per interval.
-#' @param peaks_df (see function body).
-#' @param x_lo (see function body).
-#' @param x_hi (see function body).
+#' @param peaks_df Data.frame of peaks (start_rel, end_rel, ...) within the analysis window.
+#' @param x_lo Lower x-axis limit in bp.
+#' @param x_hi Upper x-axis limit in bp.
 #' @noRd
 .histone_union_intervals <- function(peaks_df, x_lo, x_hi) {
   if (is.null(peaks_df) || nrow(peaks_df) == 0)
@@ -1138,6 +1140,7 @@ plot_epigenetic_complex_locus <- function(
 #' @param gene_info       passed-through gene info (for plot title).
 #' @param upstream        bp upstream of TSS for the x-axis.
 #' @param downstream      bp downstream of TSS for the x-axis.
+#' @return A \code{ggplot} object.
 #' @export
 plot_histone_marks_locus <- function(
     histone_data, pos_map, gene_info,
@@ -1315,9 +1318,9 @@ plot_histone_marks_locus <- function(
 # colour palette but operates on a character vector. Defined at top level
 # so plot_histone_marks_locus() can reference it inside the geom layer.
 #' Recycle a fill vector to a target length, padding with grey.
-#' @param marks (see function body).
-#' @param active_marks (see function body).
-#' @param repressive_marks (see function body).
+#' @param marks Character vector of histone modifications to query.
+#' @param active_marks Histone marks treated as active (e.g. H3K4me3, H3K27ac).
+#' @param repressive_marks Histone marks treated as repressive (e.g. H3K27me3, H3K9me3).
 #' @noRd
 fill_for_vec <- function(marks, active_marks, repressive_marks) {
   ifelse(marks %in% active_marks,     "#E63946",
@@ -1455,6 +1458,10 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #' @return Invisibly, a list with: \code{spatial_df_epi}, \code{zones_df},
 #'   \code{chipatlas_peaks}, \code{factors_present}, \code{factors_missing},
 #'   \code{kernel_sigma}, \code{zone_frac}, \code{weight_mode}.
+#' @examples
+#' \dontrun{
+#' run_caspex_epigenetic(res)
+#' }
 #' @export
 run_caspex_epigenetic <- function(
     result,

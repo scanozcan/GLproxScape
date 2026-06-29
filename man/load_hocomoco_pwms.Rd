@@ -20,3 +20,8 @@ return the cached list (held in package-private \code{.hocomoco_env}).
 For each gene that appears in multiple HOCOMOCO matrices, the
 best-rated matrix (A > B > C > D) is retained.
 }
+\examples{
+\dontrun{
+pwms <- load_hocomoco_pwms(version = "v12", species = "human")
+}
+}

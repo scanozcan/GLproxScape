@@ -31,3 +31,9 @@ between Ensembl releases / load-balanced cluster nodes — which produces
 uniform TSS-frame shifts (e.g. all gRNA positions translate by the same
 Δ bp), so it is no longer the default.
 }
+\examples{
+\dontrun{
+gi <- lookup_gene("TERT")
+str(gi)
+}
+}

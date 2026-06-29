@@ -23,3 +23,8 @@ Drop-in replacement for \code{\link{fetch_jaspar_pwm}}: same return
 shape \code{list(id, name, pwm, len)} where \code{pwm} is a 4 x L
 log-odds matrix against a uniform background.
 }
+\examples{
+\dontrun{
+pwm <- fetch_hocomoco_pwm("CTCF")
+}
+}

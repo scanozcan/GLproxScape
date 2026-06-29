@@ -440,6 +440,10 @@
 #' @param force logical; re-download even if cached.
 #' @param quiet passed to download.file().
 #' @return path to the cached TSV.
+#' @examples
+#' \dontrun{
+#' exp <- download_chipatlas_experiment_list()
+#' }
 #' @export
 download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
   fpath <- file.path(.chipatlas_cache_dir(), "experimentList.tab")
@@ -615,9 +619,9 @@ chipatlas_srx_for_tf <- function(tf, genome = "hg38") {
 # ---- per-SRX BED fetch -------------------------------------------------------
 
 #' URL of a per-SRX BED file at a given threshold.
-#' @param srx (see function body).
-#' @param genome (see function body).
-#' @param threshold (see function body).
+#' @param srx ChIP-Atlas experiment accession (SRX identifier).
+#' @param genome ChIP-Atlas genome assembly, e.g. "hg38" or "mm10".
+#' @param threshold ChIP-Atlas peak significance threshold as a string (e.g. "05" for the q < 1e-5 track).
 #' @noRd
 .chipatlas_srx_bed_url <- function(srx, genome = "hg38", threshold = "05") {
   sprintf("https://chip-atlas.dbcls.jp/data/%s/eachData/bed%s/%s.%s.bed",
@@ -630,13 +634,13 @@ chipatlas_srx_for_tf <- function(tf, genome = "hg38") {
 #' error stub, etc.). `download.file()` returns 0 on success; we also
 #' sniff the first line of the downloaded file because some ChIP-Atlas
 #' 404 paths return a 200 status with an HTML body.
-#' @param srx (see function body).
-#' @param genome (see function body).
-#' @param threshold (see function body).
-#' @param force (see function body).
-#' @param quiet (see function body).
-#' @param max_retries (see function body).
-#' @param timeout_sec (see function body).
+#' @param srx ChIP-Atlas experiment accession (SRX identifier).
+#' @param genome ChIP-Atlas genome assembly, e.g. "hg38" or "mm10".
+#' @param threshold ChIP-Atlas peak significance threshold as a string (e.g. "05" for the q < 1e-5 track).
+#' @param force Logical; force re-download and bypass the cache when TRUE.
+#' @param quiet Logical; suppress progress messages when TRUE.
+#' @param max_retries Maximum number of HTTP retry attempts on transient failures.
+#' @param timeout_sec HTTP request timeout in seconds.
 #' @noRd
 download_chipatlas_srx_bed <- function(srx, genome = "hg38", threshold = "05",
                                        force = FALSE, quiet = TRUE,
@@ -698,7 +702,7 @@ download_chipatlas_srx_bed <- function(srx, genome = "hg38", threshold = "05",
 # `read.table` with `col.names`+`colClasses` mis-typed the 4th field as
 # numeric and silently dropped every row. Line-based parse avoids that.
 #' Parse a cached per-SRX BED file into a data.frame.
-#' @param fpath (see function body).
+#' @param fpath File-system path to read or write.
 #' @noRd
 .read_chipatlas_srx_bed <- function(fpath) {
   if (is.null(fpath) || !file.exists(fpath) || file.size(fpath) == 0) return(NULL)
@@ -739,10 +743,10 @@ download_chipatlas_srx_bed <- function(srx, genome = "hg38", threshold = "05",
 #'
 #' Mirrors the logic in fetch_promoter_seq() so we can map ChIP-Atlas peaks
 #' onto the same TSS-relative axis the rest of the pipeline uses.
-#' @param gene_info (see function body).
-#' @param promoter_info (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
+#' @param gene_info Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).
+#' @param promoter_info Promoter-window sequence and coordinate record returned by fetch_promoter_seq().
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
 #' @noRd
 .chipatlas_window_coords <- function(gene_info, promoter_info,
                                       upstream, downstream,
@@ -768,8 +772,8 @@ download_chipatlas_srx_bed <- function(srx, genome = "hg38", threshold = "05",
 }
 
 #' Filter a per-SRX BED data.frame to the promoter window; add TSS-relative cols
-#' @param df (see function body).
-#' @param win (see function body).
+#' @param df Data.frame of ChIP-Atlas peaks to filter to the window.
+#' @param win Analysis-window coordinates (TSS-relative start and end in bp).
 #' @noRd
 .chipatlas_filter_to_window <- function(df, win) {
   if (is.null(df) || nrow(df) == 0) return(NULL)
@@ -888,20 +892,26 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
 #' Batch fetch for a set of TFs
 #'
 #' @return named list tf -> data.frame (or NULL if no peaks in window).
-#' @param tfs (see function body).
-#' @param gene_info (see function body).
-#' @param promoter_info (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
-#' @param threshold (see function body).
-#' @param max_experiments (see function body).
-#' @param special_interest_gene (see function body).
-#' @param special_interest_cap (see function body).
-#' @param quiet (see function body).
+#' @param tfs Character vector of transcription-factor symbols to include.
+#' @param gene_info Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).
+#' @param promoter_info Promoter-window sequence and coordinate record returned by fetch_promoter_seq().
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @param threshold ChIP-Atlas peak significance threshold as a string (e.g. "05" for the q < 1e-5 track).
+#' @param max_experiments Maximum number of ChIP-Atlas experiments (SRX) fetched per TF.
+#' @param special_interest_gene Factor(s) exempted from the chipatlas_max_experiments cap.
+#' @param special_interest_cap Per-factor SRX cap for special-interest genes; NULL means uncapped.
+#' @param quiet Logical; suppress progress messages when TRUE.
 #' @param genome ChIP-Atlas genome assembly code (e.g. "hg38", "mm10").
 #'   Defaults to "hg38" for backward compatibility. Use the
 #'   `chipatlas_genome` argument on \code{run_caspex()} to auto-derive
 #'   this from the run's `species` argument (recommended).
+#' @examples
+#' \dontrun{
+#' gi  <- lookup_gene("TERT")
+#' pi  <- fetch_promoter_seq(gi)
+#' res <- run_chipatlas_scan(c("CTCF", "MAZ"), gi, pi)
+#' }
 #' @export
 run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                                upstream = 2500, downstream = 500,
@@ -987,8 +997,8 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
 #' is a substring of the field OR the field is a substring of the target.
 #' That way "HEK293T" matches both "HEK293T" and "HEK293" (in case some
 #' submissions dropped the trailing "T").
-#' @param cell_type_field (see function body).
-#' @param target (see function body).
+#' @param cell_type_field Name of the column holding the cell-type label in the experiment table.
+#' @param target Target cell-type label to match against ChIP-Atlas metadata.
 #' @noRd
 .chipatlas_celltype_match <- function(cell_type_field, target) {
   if (is.null(target) || is.na(target) || !nzchar(target))
@@ -1013,13 +1023,13 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
 #' rather than deriving it via chipatlas_srx_for_tf(). Lets the histone-mark
 #' fetch pre-filter SRXs by cell type (matched bucket) or take a top-N
 #' newest slice (all-cell-types bucket) without re-querying experimentList.
-#' @param srx_ids (see function body).
-#' @param gene_info (see function body).
-#' @param promoter_info (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
-#' @param threshold (see function body).
-#' @param quiet (see function body).
+#' @param srx_ids Character vector of ChIP-Atlas SRX accessions.
+#' @param gene_info Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).
+#' @param promoter_info Promoter-window sequence and coordinate record returned by fetch_promoter_seq().
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @param threshold ChIP-Atlas peak significance threshold as a string (e.g. "05" for the q < 1e-5 track).
+#' @param quiet Logical; suppress progress messages when TRUE.
 #' @noRd
 .fetch_chipatlas_peaks_for_srxs <- function(srx_ids, gene_info, promoter_info,
                                              upstream = 2500, downstream = 500,
@@ -1069,16 +1079,16 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
 #'                          all     = list(mark = peaks_df, ...),
 #'                          n_srx_matched = list(mark = n, ...),
 #'                          n_srx_all     = list(mark = n, ...))`.
-#' @param marks (see function body).
-#' @param gene_info (see function body).
-#' @param promoter_info (see function body).
-#' @param upstream (see function body).
-#' @param downstream (see function body).
-#' @param cell_type (see function body).
-#' @param max_experiments_matched (see function body).
-#' @param max_experiments_all (see function body).
-#' @param threshold (see function body).
-#' @param quiet (see function body).
+#' @param marks Character vector of histone modifications to query.
+#' @param gene_info Gene/transcript coordinate record returned by lookup_gene() (chromosome, strand, TSS, assembly).
+#' @param promoter_info Promoter-window sequence and coordinate record returned by fetch_promoter_seq().
+#' @param upstream Basepairs upstream of the TSS included in the analysis window.
+#' @param downstream Basepairs downstream of the TSS included in the analysis window.
+#' @param cell_type ChIP-Atlas cell-type label to match or filter on.
+#' @param max_experiments_matched Cap on matched-cell-type ChIP-Atlas experiments fetched per TF.
+#' @param max_experiments_all Cap on all-cell-type ChIP-Atlas experiments fetched per TF.
+#' @param threshold ChIP-Atlas peak significance threshold as a string (e.g. "05" for the q < 1e-5 track).
+#' @param quiet Logical; suppress progress messages when TRUE.
 #' @noRd
 fetch_histone_peaks_for_locus <- function(
     marks,
@@ -1214,6 +1224,11 @@ fetch_histone_peaks_for_locus <- function(
 #' @param keep_experiment_list if TRUE (default), preserve the ~300 MB
 #'   experimentList.tab and only purge the per-SRX BED cache. Useful between
 #'   debug runs so you don't re-download the big metadata file every time.
+#' @return Invisibly \code{NULL}; called for its side effect of clearing the on-disk ChIP-Atlas cache.
+#' @examples
+#' \dontrun{
+#' clear_chipatlas_cache()
+#' }
 #' @export
 clear_chipatlas_cache <- function(keep_experiment_list = TRUE) {
   dir <- .chipatlas_cache_dir()

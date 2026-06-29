@@ -34,3 +34,8 @@ Lazy-loaded on first call to \code{\link{fetch_hocomoco_pwm}} or
 necessary outside firewalled environments where the automatic
 download is blocked.
 }
+\examples{
+\dontrun{
+download_hocomoco_bundle(version = "v12", species = "human")
+}
+}
