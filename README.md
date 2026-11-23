@@ -697,6 +697,104 @@ correctly. Supported species → assembly mappings include
 yeast, and a few others; override with `chipatlas_genome = "..."`
 when a specific older build is needed.
 
+## Full example with all options
+
+All arguments of `run_glproxscape()`, using the example from "Running the
+analysis" and grouped by step. Values marked "default" can be left out; the
+others turn on optional features (CIS-BP motifs, cell-type-aware ChIP-Atlas,
+histone marks and expression, the positional bootstrap). See the
+`run_glproxscape()` parameter reference above for each argument.
+
+```r
+res <- run_glproxscape(
+  # -- Inputs ---------------------------------------------------------------
+  gene                  = "YOUR_GENE",         # HGNC symbol
+  grnas                 = inputs$grnas,
+  data_files            = inputs$data_files,
+  tf_universe           = NULL,                # default: bundled TF list (Lambert et al. 2018)
+  epi_universe          = NULL,                # default: bundled EpiFactors list
+  species               = "homo_sapiens",      # default; e.g. "mus_musculus"
+  transcript            = "canonical",         # or "ENST..." for an alt-promoter
+  cell_type             = "HEK293",            # experimental cell line: ChIP-Atlas by cell type,
+                                               #   histone-mark filter, HPA expression (human)
+  out_dir               = "my_gene_analysis/glproxscape_output",
+
+  # -- Promoter window ------------------------------------------------------
+  upstream              = 3250,                # bp upstream of the TSS
+  downstream            = 100,                 # bp downstream of the TSS
+
+  # -- Protein filters and TF selection ---------------------------------------
+  pval_thresh           = 0.05,                # default
+  min_regions           = 2,                   # default
+  min_lfc               = 0,                   # default
+  tfs_only              = TRUE,                # default
+  top_n                 = 25,                  # default
+  motif_tfs             = NULL,                # default: chosen from n_common / n_shared / n_specific
+  n_common              = 20,                  # default
+  n_shared              = 20,                  # default
+  n_specific            = 20,                  # default
+
+  # -- Region weights ----------------------------------------------------------
+  weight_mode           = "z",                 # default; "mod_t", "lfc_pos", "lfc_signed", "lfc_x_negp"
+  signal_weight         = NULL,                # default: same as weight_mode
+
+  # -- Motif scan ----------------------------------------------------------------
+  motif_search_engine   = "cisbp",             # default "jaspar"; or "hocomoco"
+  motif_thresh          = 0.75,                # default 0.80 (fraction of max PWM score)
+  motif_score_weight    = "none",              # default; "linear", "log"
+  motif_scan_pool       = "selected",          # default; "spatial_all"
+  hocomoco_version      = "v12",               # default (used with "hocomoco")
+  hocomoco_species      = NULL,                # default: from species
+  cisbp_status          = "direct",            # default; "inferred" for species with few motifs
+  cisbp_prefer          = "in_vitro",          # default; "none"
+  cisbp_pick            = "medoid",            # default; "ic"
+  cisbp_species         = NULL,                # default: from species
+
+  # -- Labeling kernel and event calling -----------------------------------------
+  kernel_sigma          = 300,                 # default (bp)
+  cov_floor             = 0.05,                # default
+  edge_guard_frac       = 0.25,                # default
+  min_weight_frac       = 0.15,                # default
+  zone_peak_frac        = 0.5,                 # default
+  min_peak_dist         = 150,                 # default (motif-free peaks)
+  merge_dist            = 100,                 # default
+  merge_position        = "argmax",            # default; "centroid"
+  max_events_per_tf     = 30,                  # default
+  max_grna_distance     = NULL,                # default: kernel_sigma
+  edge_grna_weight_cap  = NULL,                # default: no cap
+
+  # -- Positional stability (optional) ----------------------------------------------
+  position_stability    = "wild_bootstrap",    # default "none"
+  n_bootstrap           = 200L,                # default
+
+  # -- ChIP-Atlas overlay ----------------------------------------------------------------
+  chipatlas             = TRUE,                # default FALSE
+  chipatlas_threshold   = "05",                # default; "10", "20"
+  chipatlas_max_experiments = 100,             # default (newest per TF; Inf = all)
+  chipatlas_tagged      = TRUE,                # default; FALSE = TF-antibody experiments only
+  chipatlas_genome      = NULL,                # default: from species
+  special_interest_gene = c("CTCF"),           # default NULL; TFs scanned without the cap
+  special_interest_cap  = NULL,                # default: no cap for those TFs
+  chipatlas_quiet       = TRUE,                # default
+
+  # -- Detail deck --------------------------------------------------------------------------
+  detail_top_n          = 100,                 # default
+  deconv_min_motif_hits = 0,                   # default
+  deconv_min_max_lfc    = 0,                   # default
+
+  # -- Output ---------------------------------------------------------------------------------
+  save_plots            = TRUE,                # default
+  plot_width            = 10,                  # default
+  plot_height           = 8,                   # default
+
+  # -- Downstream phases ------------------------------------------------------------------------
+  extras                = TRUE,                # default; diagnostic plot pack -> <out_dir>/extras/
+  epigenetic            = TRUE,                # default; chromatin-factor zones -> <out_dir>/epigenetic/
+  extras_args           = list(),              # default
+  epigenetic_args       = list()               # default; e.g. list(histone_cell_type = "HEK293T")
+)
+```
+
 ## Citation
 
 If you use GLproxScape in your work, please cite:
