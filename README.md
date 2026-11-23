@@ -70,7 +70,7 @@ example.
 </p>
 
 <p align="center">
-  <em>Figure 1 of the GLproxScape paper. (A) Experimental workflow: CASPEX
+  <em>(A) Experimental workflow: CASPEX
   (dCas9-APEX2) is targeted to a locus by tiled sgRNAs, biotinylated proteins
   are identified by mass spectrometry, and GLproxScape converts the per-region
   enrichments into binding events and chromatin-regulator zones. (B) Inputs,
