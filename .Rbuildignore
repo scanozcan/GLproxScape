@@ -22,3 +22,4 @@
 ^\.\.Rcheck$
 ^README_update_December2026\.md$
 \.DS_Store$
+^LICENSE\.md$

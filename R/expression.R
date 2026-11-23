@@ -89,7 +89,13 @@ load_cell_line_expression <- function(cell_type = NULL, file = NULL,
   if (is.null(cell_type)) stop("Give cell_type or file.", call. = FALSE)
   rds <- file.path(.expr_cache_dir(),
                    paste0("hpa_", gsub("[^A-Za-z0-9]+", "_", cell_type), ".rds"))
-  if (file.exists(rds) && !force) return(readRDS(rds))
+  if (file.exists(rds) && !force) {
+    out <- readRDS(rds)
+    # Caches written by earlier scripts stored the name as "cell_line".
+    if (is.null(attr(out, "cell_type")))
+      attr(out, "cell_type") <- attr(out, "cell_line") %||% cell_type
+    return(out)
+  }
 
   zip <- .download_hpa_celline()
   con <- unz(zip, "rna_celline.tsv")
@@ -324,7 +330,7 @@ annotate_tf_expression <- function(result, expr, families = load_tf_families(),
                    -ifelse(is.na(tab$expr), -1, tab$expr)), ]
   rownames(tab) <- NULL
   list(tf = tab, events = ev, pairs = pairs,
-       meta = list(cell_type = attr(expr, "cell_type"), source = attr(expr, "source"),
+       meta = list(cell_type = attr(expr, "cell_type") %||% attr(expr, "cell_line") %||% "cell line", source = attr(expr, "source"),
                    min_expr = min_expr, tol_bp = tol_bp, jaccard_min = jaccard_min,
                    skip_families = skip_families))
 }
@@ -369,7 +375,8 @@ plot_expression_families <- function(ann) {
                   title = "Detected TFs of the same DNA-binding-domain family",
                   subtitle = sprintf(paste0("families: Lambert et al. 2018 (C2H2 ZF and Unknown not grouped)\n",
                                             "thick outline = most-expressed TF among members sharing sites ",
-                                            "(Jaccard >= %.1f, events within %d bp); dashed line = %g nTPM"),
+                                            "(Jaccard >= %.1f, events within %d bp)\n",
+                                            "dashed line = %g nTPM"),
                                      m$jaccard_min, m$tol_bp, m$min_expr)) +
     ggplot2::theme_bw() +
     ggplot2::theme(panel.grid.minor = ggplot2::element_blank())

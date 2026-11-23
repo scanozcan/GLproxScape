@@ -10,7 +10,7 @@
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/scanozcan/GLproxScape/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/scanozcan/GLproxScape/actions/workflows/R-CMD-check.yaml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
 [![Lifecycle: experimental](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 [![Data: Zenodo](https://img.shields.io/badge/data-10.5281%2Fzenodo.20337799-blue)](https://doi.org/10.5281/zenodo.20337799)
 [![Publication: TBD](https://img.shields.io/badge/publication-TBD-lightgrey)](#)
