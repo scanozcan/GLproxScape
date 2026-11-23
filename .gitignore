@@ -58,3 +58,6 @@ inst/extdata/examples/*/caspex_output*/
 # - Already in .Rbuildignore line 14 so excluded from the package tarball
 # - Lives only on the maintainer's local filesystem
 _dev/
+
+# Local planning notes (never pushed)
+future_improvements.md

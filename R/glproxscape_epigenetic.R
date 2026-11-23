@@ -1,8 +1,8 @@
 # =============================================================================
-# caspex_epigenetic.R
+# glproxscape_epigenetic.R
 #
 # Epigenetic-factor binding-zone analysis. Parallel module to the TF binding-
-# event pipeline in caspex_analysis.R, but tailored to chromatin-associated
+# event pipeline in glproxscape_analysis.R, but tailored to chromatin-associated
 # factors that lack JASPAR motifs:
 #
 #   * No motif scanning, no per-motif NNLS, no motif anchoring.
@@ -10,18 +10,18 @@
 #     (contiguous bp ranges where \u03b2(x) > zone_frac \u00b7 max(\u03b2)). This honestly
 #     represents what the proximity-labelling kernel resolves at \u03c3 = 300 bp
 #     for spreading marks (PRC2, BRD4, KDM domains, etc.) \u2014 a domain, not a
-#     position. Compare to plot_binding_deconvolution()'s point-bubble lane.
+#     position. Compare to plot_binding_events()'s point-bubble lane.
 #   * ChIP-Atlas validation is the primary lane (not supplementary), since
 #     for chromatin factors public ChIP-seq is the directly comparable
 #     readout.
 #
-# This module piggybacks on caspex_analysis.R's signal-building primitives
+# This module piggybacks on glproxscape_analysis.R's signal-building primitives
 # (build_caspex_signal, compute_coverage, compute_region_weight, COLS,
-# theme_caspex) and on caspex_chipatlas.R's run_chipatlas_scan(). Both must
+# theme_glproxscape) and on glproxscape_chipatlas.R's run_chipatlas_scan(). Both must
 # already be sourced into the global env before this file is loaded.
 #
 # Sourced explicitly from runner scripts (e.g. myers_2018_reanalysis/1-myers.R)
-# alongside the other caspex_*.R modules. Not auto-loaded by caspex_analysis.R
+# alongside the other caspex_*.R modules. Not auto-loaded by glproxscape_analysis.R
 # \u2014 keeps the TF deck path independent of the epigenetic deck path.
 # =============================================================================
 
@@ -62,7 +62,7 @@
 #' @return data.frame with columns: tf, zone_start, zone_end, zone_width,
 #'   peak_position, peak_beta, distance_to_nearest_grna, n_regions_supporting.
 #' @param tf_name Symbol of the single transcription factor to plot.
-#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param x_grid Numeric vector of TSS-relative basepair positions defining the spatial grid.
 #' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
@@ -420,7 +420,7 @@ predict_binding_zones_epigenetic <- function(
 #' Per-factor epigenetic zone deck page (Plot 10 analogue).
 #'
 #' Renders one page for a single epigenetic factor with three lanes:
-#'   1. Upper panel: CasPEX signal curve s(x) + per-region logFC stems.
+#'   1. Upper panel: GLproxScape signal curve s(x) + per-region logFC stems.
 #'   2. Middle lane: zone bars (horizontal coloured rectangles spanning
 #'      [zone_start, zone_end]) with a diamond at peak_position. Replaces
 #'      the bubble + motif-tick lane from the TF deck.
@@ -430,7 +430,7 @@ predict_binding_zones_epigenetic <- function(
 #' position track (MLE is a TF-specific diagnostic that disambiguates the
 #' "low logFC could be far binder" case for sequence-specific anchors).
 #' @param tf_name Symbol of the single transcription factor to plot.
-#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param zones_df Epigenetic binding-zone table (tf, zone_start, zone_end, peak_beta, peak_position).
 #' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
@@ -472,7 +472,7 @@ plot_epigenetic_zone_deck <- function(
   rd      <- sig$region_data
   sig_max <- max(c(sig$y, rd$lfc, 1), na.rm = TRUE)
 
-  # Match plot_binding_deconvolution's window-clipping rationale: scope
+  # Match plot_binding_events's window-clipping rationale: scope
   # the visible x-range to where the gRNA tile can actually constrain
   # signal (one \u03c3 past the outermost guides on each side).
   pos_r_detect <- sort(as.numeric(pos_map[!is.na(pos_map)]))
@@ -494,7 +494,7 @@ plot_epigenetic_zone_deck <- function(
   zone_y_mid  <- (zone_y_top + zone_y_bot) / 2
   track_bot   <- zone_y_bot - 0.04 * sig_max
 
-  # ChIP-Atlas band height scales with #SRX (mirrors plot_binding_deconvolution).
+  # ChIP-Atlas band height scales with #SRX (mirrors plot_binding_events).
   ca_rows <- if (!is.null(chipatlas_peaks) && nrow(chipatlas_peaks) > 0)
     unique(chipatlas_peaks$srx) else character(0)
   n_ca_rows <- length(ca_rows)
@@ -514,7 +514,7 @@ plot_epigenetic_zone_deck <- function(
     geom_point(data = rd, aes(x = pos, y = lfc),
                color = COLS$neutral, size = 3) +
     # Region labels: above for positive lfc, to the right side for
-    # negative lfc \u2014 matches the TF deck's plot_binding_deconvolution
+    # negative lfc \u2014 matches the TF deck's plot_binding_events
     # behaviour so the two decks stay visually consistent and so
     # negative-lfc labels don't drop into the zone-bar lane below.
     geom_text(data = transform(rd,
@@ -701,12 +701,12 @@ plot_epigenetic_zone_deck <- function(
   }
 
   y_label <- switch(weight_mode,
-    z          = "CasPEX signal (z-weighted, signed z from p-value)",
-    mod_t      = "CasPEX signal (mod-t weighted)",
-    lfc_pos    = "CasPEX signal (positive logFC-weighted)",
-    lfc_signed = "CasPEX signal (signed logFC-weighted)",
-    lfc_x_negp = "CasPEX signal (logFC \u00d7 -log10 p-weighted)",
-    paste0("CasPEX signal (", weight_mode, "-weighted)"))
+    z          = "GLproxScape signal (z-weighted, signed z from p-value)",
+    mod_t      = "GLproxScape signal (mod-t weighted)",
+    lfc_pos    = "GLproxScape signal (positive logFC-weighted)",
+    lfc_signed = "GLproxScape signal (signed logFC-weighted)",
+    lfc_x_negp = "GLproxScape signal (logFC \u00d7 -log10 p-weighted)",
+    paste0("GLproxScape signal (", weight_mode, "-weighted)"))
 
   p +
     scale_y_continuous(
@@ -717,13 +717,13 @@ plot_epigenetic_zone_deck <- function(
          title = paste0(tf_name, " \u2014 epigenetic binding zones"),
          subtitle = sprintf(
            "%d zone(s) | kernel \u03c3 = %d bp  \u00b7  outer bar = \u03b2 > %.2f\u00b7max(\u03b2) (broad domain) | inner bar = \u03b2 > %.2f\u00b7max(\u03b2) within zone (focal core)",
-           # Avoid `%||%` here \u2014 caspex_analysis.R's definition does
+           # Avoid `%||%` here \u2014 glproxscape_analysis.R's definition does
            # `is.na(a[[1]])` which returns a length-N logical when `a` is
            # a data.frame, tripping the `||` short-circuit. Use an
            # explicit null check.
            if (is.null(zones_df)) 0L else nrow(zones_df),
            kernel_sigma, zone_frac, inner_zone_frac)) +
-    theme_caspex()
+    theme_glproxscape()
 }
 
 # =============================================================================
@@ -1076,7 +1076,7 @@ plot_epigenetic_complex_locus <- function(
     coord_cartesian(clip = "off") +
     labs(x = "Position (bp, TSS-relative)", y = NULL,
          title = title_str, subtitle = subtitle_str) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(panel.grid = element_blank(),
           axis.text.y = element_blank(),
           axis.ticks.y = element_blank(),
@@ -1304,7 +1304,7 @@ plot_histone_marks_locus <- function(
       subtitle = sprintf(
         "Top: %s-matched ChIP-Atlas peaks per mark, union across SRXs  |  Bottom: all cell types aggregated, union across newest-N SRXs",
         ct)) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(panel.grid = element_blank(),
           axis.text.y  = element_blank(),
           axis.ticks.y = element_blank(),
@@ -1328,22 +1328,22 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 }
 
 # =============================================================================
-# SECTION 5: Top-level orchestrator \u2014 run_caspex_epigenetic()
+# SECTION 5: Top-level orchestrator \u2014 run_glproxscape_epigenetic()
 # =============================================================================
 
 #' Run the epigenetic-factor binding-zone analysis on a CasPEX result.
 #'
-#' Designed to be called AFTER `run_caspex()` on the same locus, taking the
+#' Designed to be called AFTER `run_glproxscape()` on the same locus, taking the
 #' returned result list as input. Reuses `result$long_data`, `result$pos_map`,
 #' `result$gene_info`, `result$promoter_info`, `result$kernel_sigma`,
 #' `result$weight_mode` — no inputs are reloaded from disk. Mirrors the
-#' `run_caspex_extras()` ergonomic pattern.
+#' `run_glproxscape_extras()` ergonomic pattern.
 #'
 #' What this function does, in order:
 #'   1. Filter result$long_data to the supplied epigenetic factor list.
 #'      Reports the detection-overlap rate (factors in list ∩ proteins
 #'      detected in long_data) — the only proteins we can model.
-#'   2. Run the same spatial model (run_spatial_model) used by run_caspex(),
+#'   2. Run the same spatial model (run_spatial_model) used by run_glproxscape(),
 #'      but with tfs_only = FALSE so the TFDatabase filter doesn't drop
 #'      epigenetic factors that happen to be missing the isTF flag.
 #'   3. Per surviving factor, call predict_binding_zones_epigenetic() to
@@ -1355,7 +1355,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   6. Generate a per-factor PDF deck and write zones / spatial CSVs.
 #'
 #'
-#' @param result Output of \code{\link{run_caspex}} on the same locus.
+#' @param result Output of \code{\link{run_glproxscape}} on the same locus.
 #'   Reused: \code{long_data}, \code{pos_map}, \code{gene_info},
 #'   \code{promoter_info}, \code{kernel_sigma}, \code{weight_mode}.
 #' @param epigenetic_factors Character vector of HGNC symbols for the
@@ -1382,14 +1382,14 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   \code{result$kernel_sigma} (typically 300).
 #' @param weight_mode Region-weight mode. NULL = inherit from
 #'   \code{result$weight_mode} (typically "z").
-#' @param cov_floor Coverage-denominator floor (see \code{\link{run_caspex}}).
+#' @param cov_floor Coverage-denominator floor (see \code{\link{run_glproxscape}}).
 #'   Default 0.05.
-#' @param edge_guard_frac In-support beta mask (see \code{\link{run_caspex}}).
+#' @param edge_guard_frac In-support beta mask (see \code{\link{run_glproxscape}}).
 #'   Default 0.25.
 #' @param edge_grna_weight_cap Optional boundary-gRNA weight-share cap
-#'   (see \code{\link{run_caspex}}). NULL disables (default).
+#'   (see \code{\link{run_glproxscape}}). NULL disables (default).
 #' @param max_grna_distance Hard geometric cap on event-to-nearest-guide
-#'   distance (see \code{\link{run_caspex}}). NULL (default).
+#'   distance (see \code{\link{run_glproxscape}}). NULL (default).
 #' @param upstream,downstream bp window around TSS. Defaults 2500 / 500.
 #'   Should match the TF run's window so coordinates line up.
 #'
@@ -1418,7 +1418,7 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   (default 100).
 #' @param special_interest_gene Optional character vector of factor
 #'   symbols whose ChIP-Atlas scan bypasses the per-factor cap (same
-#'   semantics as in \code{\link{run_caspex}}).
+#'   semantics as in \code{\link{run_glproxscape}}).
 #' @param special_interest_cap Optional integer cap on the
 #'   special-interest SRX count. NULL = scan all SRX (default).
 #' @param chipatlas_quiet Suppress per-SRX download messages (default TRUE).
@@ -1432,7 +1432,9 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   "H3K27me3", "H3K9me3")}.
 #' @param histone_cell_type Cell-type substring (case- and punctuation-
 #'   insensitive) used to filter the top section to matched SRXs.
-#'   Default \code{"HEK293T"}.
+#'   \code{NULL} (default) uses the \code{cell_type} given to
+#'   \code{\link{run_glproxscape}} (stored on \code{result}); if that is also
+#'   \code{NULL}, no cell-type filter is applied.
 #' @param histone_max_experiments_matched Cap on cell-type-matched SRX
 #'   per mark (default 50).
 #' @param histone_max_experiments_all Cap on all-cell-type SRX per
@@ -1460,10 +1462,10 @@ fill_for_vec <- function(marks, active_marks, repressive_marks) {
 #'   \code{kernel_sigma}, \code{zone_frac}, \code{weight_mode}.
 #' @examples
 #' \dontrun{
-#' run_caspex_epigenetic(res)
+#' run_glproxscape_epigenetic(res)
 #' }
 #' @export
-run_caspex_epigenetic <- function(
+run_glproxscape_epigenetic <- function(
     result,
     epigenetic_factors = NULL,
     zone_frac        = 0.3,
@@ -1478,7 +1480,7 @@ run_caspex_epigenetic <- function(
     chipatlas               = TRUE,
     chipatlas_threshold     = "05",
     chipatlas_max_experiments = 100,
-    # `special_interest_gene`: same semantics as in run_caspex(). Listed
+    # `special_interest_gene`: same semantics as in run_glproxscape(). Listed
     # factors bypass the chipatlas_max_experiments cap. Cache is shared with
     # the TF run, so factors already downloaded there are free here.
     # `special_interest_cap`: NULL = scan ALL SRX for special-interest
@@ -1511,7 +1513,7 @@ run_caspex_epigenetic <- function(
     histone_marks_pdf       = TRUE,
     histone_marks           = c("H3K4me3", "H3K27ac", "H3K4me1",
                                  "H3K36me3", "H3K27me3", "H3K9me3"),
-    histone_cell_type       = "HEK293T",
+    histone_cell_type       = NULL,
     histone_max_experiments_matched = 50,
     histone_max_experiments_all     = 50,
     # \u2500\u2500 Epigenetic complexes (EpiGenes-derived) deck \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
@@ -1534,7 +1536,10 @@ run_caspex_epigenetic <- function(
     save_plots       = TRUE) {
 
   if (missing(out_dir) || is.null(out_dir))
-    stop("run_caspex_epigenetic(): `out_dir` is required.")
+    stop("run_glproxscape_epigenetic(): `out_dir` is required.")
+  # One cell type for the whole run: run_glproxscape(cell_type = ...) is stored on
+  # the result and used here unless the caller overrides histone_cell_type.
+  if (is.null(histone_cell_type)) histone_cell_type <- result$cell_type
 
   # Inherit defaults from the result object so the analysis is consistent
   # with the upstream TF run unless the caller explicitly overrides.
@@ -1558,7 +1563,7 @@ run_caspex_epigenetic <- function(
 
   # \u2500\u2500 Resolve epigenetic-factor universe + complexes paths from bundled
   # databases when not user-supplied.  Keeps the simple
-  # `run_caspex_epigenetic(result, out_dir = ...)` call self-contained;
+  # `run_glproxscape_epigenetic(result, out_dir = ...)` call self-contained;
   # users who want to pin a custom list still pass `epigenetic_factors = ...`
   # (and/or the two complex csv paths) and override the defaults.
   if (is.null(epigenetic_factors)) {
@@ -1698,7 +1703,10 @@ run_caspex_epigenetic <- function(
         max_experiments = chipatlas_max_experiments,
         special_interest_gene = special_interest_gene,
         special_interest_cap  = special_interest_cap,
-        quiet           = chipatlas_quiet),
+        quiet           = chipatlas_quiet,
+        genome          = result$chipatlas_genome %||% "hg38",
+        cell_type       = result$cell_type,
+        tagged          = result$chipatlas_tagged %||% TRUE),
       error = function(e) {
         message("  ChIP-Atlas fetch failed: ", conditionMessage(e))
         NULL
@@ -1748,7 +1756,7 @@ run_caspex_epigenetic <- function(
         chipatlas_peaks   = if (!is.null(chipatlas_res))
                               chipatlas_res[[tf]] else NULL)
     })
-    # `.safe_pdf` (defined module-level in caspex_analysis.R) wraps
+    # `.safe_pdf` (defined module-level in glproxscape_analysis.R) wraps
     # the multi-page write in a tryCatch so a stale-file-lock failure
     # ("dev.off() : write failed") doesn't abort the whole run.
     if (exists(".safe_pdf", mode = "function")) {

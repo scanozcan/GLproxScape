@@ -23,8 +23,8 @@
 #'
 #' Defined module-level (not inside a function) so every R/ file in the
 #' package has it visible at parse time. Replaces the three duplicate
-#' definitions previously in caspex_analysis.R, caspex_chipatlas.R, and
-#' caspex_epigenetic.R from when those files needed to be sourceable in
+#' definitions previously in glproxscape_analysis.R, glproxscape_chipatlas.R, and
+#' glproxscape_epigenetic.R from when those files needed to be sourceable in
 #' isolation.
 #'
 #' @param a left-hand operand.
@@ -84,7 +84,7 @@ COLS <- list(
 #' `print()` throws, so subsequent `pdf()` calls don't end up writing to
 #' a stale device.
 #'
-#' Used by run_caspex (analysis-side) and run_caspex_epigenetic
+#' Used by run_glproxscape (analysis-side) and run_glproxscape_epigenetic
 #' (epigenetic-side); kept here so both paths share the same retry policy.
 #'
 #' @param path output PDF path.

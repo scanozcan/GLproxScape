@@ -1,19 +1,22 @@
 Package: GLproxScape
 Type: Package
-Title: Spatial Deconvolution of dCas9-APEX2 Proximity Proteomics
-Version: 0.1.0
+Title: Spatial Reconstruction of Chromatin Occupancy from Tiled Genomic Locus Proteomics
+Version: 0.2.0
 Authors@R: person(given = "Can",
                   family = "Ozcan",
                   role = c("aut", "cre"),
                   email = "s.canozcan89@gmail.com")
-Description: Spatial deconvolution of dCas9-APEX2 proximity proteomics data
-    into transcription factor and chromatin-regulator binding predictions.
-    Models each guide's biotinylation footprint as a Gaussian labelling kernel
-    around the cut site and recovers motif-anchored binding events via
-    non-negative least squares against JASPAR position weight matrices.
-    Includes coverage-aware deconvolution, optional PWM-score weighting, a
-    zone-based path for sequence-specific-motif-less chromatin factors, and
-    an optional ChIP-Atlas overlay for independent peak validation.
+Description: Spatial analysis of tiled genomic locus proteomics data
+    (dCas9-APEX2 / CASPEX, GLoPro and related designs). Models each sgRNA's
+    biotinylation footprint as a Gaussian labeling kernel and converts
+    per-region enrichments into a coverage-normalized spatial signal, on which
+    transcription factor binding events are called at motif sites (JASPAR,
+    HOCOMOCO v12 or CIS-BP 3.10 position weight matrices; human, mouse and,
+    through CIS-BP, other species), with a motif-free path for factors without
+    a motif and zone-based detection for chromatin regulators. Optional
+    ChIP-Atlas overlay for independent peak support (including tagged
+    pulldowns and cell-type-matched experiments), locus-level histone marks,
+    and cell-line expression annotation from the Human Protein Atlas.
 License: MIT + file LICENSE
 URL: https://github.com/scanozcan/GLproxScape
 BugReports: https://github.com/scanozcan/GLproxScape/issues
@@ -23,6 +26,7 @@ Depends:
 Imports:
     ggplot2,
     grDevices,
+    grid,
     httr,
     nnls,
     patchwork,
@@ -31,6 +35,7 @@ Imports:
     tools,
     utils
 Suggests:
+    ggrepel,
     rstudioapi,
     knitr,
     rmarkdown,
@@ -40,4 +45,4 @@ Suggests:
     GenomicRanges,
     IRanges
 VignetteBuilder: knitr
-Config/roxygen2/version: 8.0.0
+Config/roxygen2/version: 8.1.1

@@ -1,14 +1,14 @@
 # =============================================================================
-# caspex_extras.R
+# glproxscape_extras.R
 # Supplementary result plots & diagnostics for the CasPEX pipeline.
-# Source AFTER caspex_analysis.R:
+# Source AFTER glproxscape_analysis.R:
 #
-#   source("caspex_analysis.R")
-#   source("caspex_extras.R")
-#   result <- run_caspex(gene = "ATP7B", grnas = ..., data_files = ...)
-#   extras <- run_caspex_extras(result, out_dir = "caspex_output/extras")
+#   source("glproxscape_analysis.R")
+#   source("glproxscape_extras.R")
+#   result <- run_glproxscape(gene = "ATP7B", grnas = ..., data_files = ...)
+#   extras <- run_glproxscape_extras(result, out_dir = "glproxscape_output/extras")
 #
-# Every top-level function takes the invisible list returned by run_caspex()
+# Every top-level function takes the invisible list returned by run_glproxscape()
 # and returns either a ggplot object, a named list of ggplots, or (for
 # expensive computations) a results object that its matching plot_* function
 # can render.
@@ -31,14 +31,14 @@
 #       run_covfloor_sensitivity, plot_covfloor_sensitivity,
 #       plot_coverage_stack
 #   Wrapper
-#       run_caspex_extras
+#       run_glproxscape_extras
 # =============================================================================
 
 # Package-internal dependencies (`%||%`, `COLS`, `.safe_pdf`,
-# `theme_caspex`, every plot helper from caspex_analysis.R, every
-# ChIP-Atlas helper from caspex_chipatlas.R) are visible at parse time
+# `theme_glproxscape`, every plot helper from glproxscape_analysis.R, every
+# ChIP-Atlas helper from glproxscape_chipatlas.R) are visible at parse time
 # because all R/ files share the package namespace. The script-style
-# library() preamble and the "verify caspex_analysis.R was sourced"
+# library() preamble and the "verify glproxscape_analysis.R was sourced"
 # guard that used to live here are no longer needed.
 
 #' Write a multi-page sensitivity-sweep PDF.
@@ -78,7 +78,7 @@
 #' One page summarising a single TF: per-region bars, spatial footprint,
 #' binding-event track, and a compact stats block.
 #'
-#' @param result   The invisible list returned by run_caspex()
+#' @param result   The invisible list returned by run_glproxscape()
 #' @param tf_name  TF symbol to summarise
 #' @return A patchwork ggplot assembly
 #' @export
@@ -97,8 +97,8 @@ plot_tf_one_pager <- function(result, tf_name) {
   # run used coverage-aware scoring, and would disagree with result$binding_events.
   # Pull upstream/downstream from the result so the A1 x-axis matches
   # the actual window the run used (e.g. -750/+500 for Pizzolato/Gao),
-  # not plot_binding_deconvolution's legacy default (-2500/+500).
-  p_top <- plot_binding_deconvolution(
+  # not plot_binding_events's legacy default (-2500/+500).
+  p_top <- plot_binding_events(
     tf_name, ld, pos_map, motif_hits,
     weight_mode      = result$weight_mode      %||% "mod_t",
     cov_floor        = result$cov_floor        %||% 0.05,
@@ -129,7 +129,7 @@ plot_tf_one_pager <- function(result, tf_name) {
                                  `FALSE` = "p > 0.05"),
                       name = NULL) +
     labs(x = NULL, y = "logFC") +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(legend.position = "bottom")
 
   # Bottom panel: stats block as text
@@ -180,7 +180,7 @@ plot_tf_one_pager <- function(result, tf_name) {
 #' via a list in the returned plot's environment). If JASPAR family info
 #' is unavailable, the bar is tagged "unknown".
 #'
-#' @param result The result object from run_caspex()
+#' @param result The result object from run_glproxscape()
 #' @param top_n  Number of top-composite TFs to include (default 30)
 #' @return ggplot
 #' @export
@@ -219,7 +219,7 @@ plot_tf_family_enrichment <- function(result, top_n = 30) {
          subtitle = paste0(nrow(df), " TFs queried | ",
                            sum(df$family == "unknown"),
                            " with no family annotation")) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1))
 }
 
@@ -256,7 +256,7 @@ plot_event_density <- function(result, binwidth = 50, weighted = TRUE) {
          subtitle = sprintf("%d events across %d TFs | binwidth %d bp | %sweighted",
                             nrow(ev), length(unique(ev$tf)), binwidth,
                             if (weighted) "" else "un")) +
-    theme_caspex()
+    theme_glproxscape()
 }
 
 # =============================================================================
@@ -268,7 +268,7 @@ plot_event_density <- function(result, binwidth = 50, weighted = TRUE) {
 #' Specificity is defined per TF as the maximum over regions of
 #' \eqn{lfc_R - mean_{R' \neq R}(lfc_{R'})}.
 #'
-#' @param result Output of \code{\link{run_caspex}}.
+#' @param result Output of \code{\link{run_glproxscape}}.
 #' @param top_label Number of TFs to label on the plot (top by composite
 #'   score). Default 15.
 #' @return A ggplot.
@@ -313,7 +313,7 @@ plot_composite_vs_specificity <- function(result, top_label = 15) {
          subtitle = paste0("Top-right: strong + region-focal | ",
                            "Top-left: focal but weaker | ",
                            "Bottom-right: diffuse")) +
-    theme_caspex()
+    theme_glproxscape()
 }
 
 # =============================================================================
@@ -325,7 +325,7 @@ plot_composite_vs_specificity <- function(result, top_label = 15) {
 #'
 #' Returns a list with the observed composite per TF and the per-TF
 #' permutation p-value (= fraction of null scores >= observed).
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param n_perm Number of permutations for the null model.
 #' @param seed Random seed for reproducibility.
 #' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
@@ -419,7 +419,7 @@ plot_permutation_null <- function(perm_result, top_n = 20) {
                         ") for composite score"),
          subtitle = paste0("Top ", top_n, " TFs by permutation p-value | ",
                            "weight mode: ", perm_result$weight_mode)) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(legend.position = "bottom",
           panel.grid.major.y = element_blank())
 }
@@ -433,7 +433,7 @@ plot_permutation_null <- function(perm_result, top_n = 20) {
 #'
 #' Uses the coverage-aware deconvolution at every σ, matching the
 #' decoder that produced `result$binding_events`.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param sigmas Numeric vector of kernel_sigma values to sweep.
 #' @param tfs Character vector of transcription-factor symbols to include.
 #' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
@@ -527,7 +527,7 @@ plot_sigma_sensitivity <- function(sigma_result) {
          y = "Event position (bp, TSS-relative)",
          title = "Kernel \u03c3 sensitivity of deconvolved binding events",
          subtitle = "Flat lines = robust call | large drift = artefact of smoothing width") +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(legend.position = "bottom")
 }
 
@@ -540,7 +540,7 @@ plot_sigma_sensitivity <- function(sigma_result) {
 #'
 #' Leave-one-out re-fits use the coverage-aware deconvolution, matching
 #' the original call.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param tfs Character vector of transcription-factor symbols to include.
 #' @param tol_bp Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).
 #' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
@@ -629,7 +629,7 @@ plot_event_jackknife <- function(jk_result, top_n = 40) {
          title = "Event robustness to leave-one-region-out",
          subtitle = paste0("Top-", top_n,
                            " events by survival fraction | tolerance: \u00b1100 bp")) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(panel.grid.major.y = element_blank())
 }
 
@@ -639,13 +639,13 @@ plot_event_jackknife <- function(jk_result, top_n = 40) {
 
 #' Overlay observed signal, NNLS reconstruction, and residual for a TF.
 #'
-#' Three-panel diagnostic for a single TF: the observed CasPEX signal
+#' Three-panel diagnostic for a single TF: the observed GLproxScape signal
 #' \eqn{s(x)}, the NNLS reconstruction \eqn{X\beta} from JASPAR motif hits,
 #' and the residual. A large residual = JASPAR motifs for this TF cannot
 #' fully account for the observed signal at this locus (motif-orphan
 #' enrichment, partner co-binding, or coverage-aware-only call).
 #'
-#' @param result Output of \code{\link{run_caspex}}.
+#' @param result Output of \code{\link{run_glproxscape}}.
 #' @param tf_name TF symbol to plot.
 #' @param kernel_sigma Gaussian labelling-radius sigma in bp (default 250).
 #' @param weight_mode Region-weight mode. NULL inherits from
@@ -709,7 +709,7 @@ plot_nnls_residual <- function(result, tf_name, kernel_sigma = 250,
          title = paste0(tf_name, " \u2014 NNLS fit quality"),
          subtitle = sprintf("%d motif candidates | fit R\u00b2 = %.3f | \u03c3 = %d bp",
                             length(hits), r2, kernel_sigma)) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(strip.text = element_text(face = "bold"))
 }
 
@@ -718,7 +718,7 @@ plot_nnls_residual <- function(result, tf_name, kernel_sigma = 250,
 # =============================================================================
 
 #' One volcano per region, TFs highlighted.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param pval_thresh Per-region significance threshold a protein must clear to enter the spatial model (default 0.05).
 #' @param lfc_thresh Log fold-change threshold for inclusion.
 #' @param label_top Number of top-ranked points to label on the plot.
@@ -768,7 +768,7 @@ plot_volcano_per_region <- function(result, pval_thresh = 0.05,
          title = "Per-region volcano plots",
          subtitle = sprintf("dashed lines: |logFC| \u2265 %g and p \u2264 %g",
                             lfc_thresh, pval_thresh)) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(legend.position = "bottom")
 }
 
@@ -777,7 +777,7 @@ plot_volcano_per_region <- function(result, pval_thresh = 0.05,
 # =============================================================================
 
 #' Pearson correlation heatmap of region logFC profiles.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param method Correlation method passed to cor(), e.g. "pearson" or "spearman".
 #' @return A \code{ggplot} object.
 #' @export
@@ -808,7 +808,7 @@ plot_region_correlation <- function(result, method = "pearson") {
                            " proteins with complete observations | ",
                            method)) +
     coord_fixed() +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(axis.text.x = element_text(angle = 45, hjust = 1),
           panel.grid = element_blank())
 }
@@ -818,7 +818,7 @@ plot_region_correlation <- function(result, method = "pearson") {
 # =============================================================================
 
 #' Faceted p-value histogram — should be roughly uniform with a peak near 0.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param binwidth Histogram bin width.
 #' @return A \code{ggplot} object.
 #' @export
@@ -833,7 +833,7 @@ plot_pval_histograms <- function(result, binwidth = 0.02) {
     labs(x = "p-value", y = "# proteins",
          title = "Per-region p-value distribution (QC)",
          subtitle = "Expected: uniform over (0.05, 1], with excess near 0") +
-    theme_caspex()
+    theme_glproxscape()
 }
 
 # =============================================================================
@@ -846,9 +846,9 @@ plot_pval_histograms <- function(result, binwidth = 0.02) {
 #' binding-deconvolution plot is the NNLS coefficient \eqn{\beta}, not the
 #' PWM match score: two motif hits with the same PWM strength can land at
 #' very different \eqn{\beta} because NNLS is reflecting the observed
-#' CasPEX signal, not the static motif quality.
+#' GLproxScape signal, not the static motif quality.
 #'
-#' @param result Output of \code{\link{run_caspex}}.
+#' @param result Output of \code{\link{run_glproxscape}}.
 #' @param tfs Optional character vector of TF symbols to render. NULL =
 #'   every TF that has both called events and a motif scan.
 #' @param kernel_sigma Gaussian labelling-radius sigma in bp (default 250).
@@ -936,7 +936,7 @@ plot_motif_vs_nnls <- function(result, tfs = NULL,
          y = "NNLS coefficient \u03b2",
          title = "Motif match strength vs NNLS weight",
          subtitle = "Same PWM score, different \u03b2 \u2192 NNLS is reflecting the signal, not the PWM") +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(legend.position = "bottom")
 }
 
@@ -954,7 +954,7 @@ plot_motif_vs_nnls <- function(result, tfs = NULL,
 #' Mode-agnostic: works identically for default and coverage-aware events
 #' because it only consumes the `tf` / `position` columns of
 #' `result$binding_events`.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param tol_bp Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).
 #' @param min_events Minimum number of events required to include a transcription factor.
 #' @param top_peak_tfs Number of top motif-free peak-predicted transcription factors to display.
@@ -1187,7 +1187,7 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
                                     " Plot 10 deck TFs") else "",
                            "  \u00b7  Hi-C-style triangle (matrix is symmetric); baseline in black = same-TF self-coloc"),
          caption = NULL) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(axis.text   = element_blank(),
           axis.ticks  = element_blank(),
           panel.grid  = element_blank(),
@@ -1210,7 +1210,7 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
 #' provided, it will be merged by (tf, position) within ±tol_bp so events
 #' inherit their survival fraction; otherwise survival defaults to 1 and
 #' the ranking reduces to per-TF-normalized β.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param jk_result Result object returned by run_event_jackknife().
 #' @param tol_bp Tolerance in bp for matching a predicted event to a ChIP-Atlas peak (default 25).
 #' @param top_n Number of top-ranked entries to retain or display.
@@ -1263,7 +1263,7 @@ rank_binding_events <- function(result, jk_result = NULL, tol_bp = 100,
          y = NULL,
          title = paste0("Top-", top_n, " ranked binding events"),
          subtitle = "Higher = stronger + more reproducible (coverage-aware)") +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(panel.grid.major.y = element_blank())
   list(ranked = out, plot = p)
 }
@@ -1283,7 +1283,7 @@ rank_binding_events <- function(result, jk_result = NULL, tol_bp = 100,
 #' denominator" visible in one view instead of requiring a cross-reference
 #' against \eqn{C(x)}.
 #'
-#' @param result Output of \code{\link{run_caspex}}. Must have
+#' @param result Output of \code{\link{run_glproxscape}}. Must have
 #'   \code{local_coverage} and \code{distance_to_nearest_grna} columns in
 #'   \code{result$binding_events} (always present for coverage-aware runs).
 #' @param top_label Number of top-\eqn{\beta} events to label. Default 15.
@@ -1333,7 +1333,7 @@ plot_coverage_rescue_scatter <- function(result, top_label = 15) {
          subtitle = paste0("cov_floor = ", result$cov_floor %||% 0.05,
                            " | triangles sit near the floor and were ",
                            "amplified by the s/C correction")) +
-    theme_caspex()
+    theme_glproxscape()
 }
 
 # =============================================================================
@@ -1347,7 +1347,7 @@ plot_coverage_rescue_scatter <- function(result, top_label = 15) {
 #' rescued. Lower floor = more distal rescues but more tail noise.
 #' Robust calls drift little across the sweep; calls that appear only at
 #' cov_floor ≤ 0.02 (say) should be treated as floor-sensitive.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param floors Numeric vector of cov_floor values to sweep.
 #' @param tfs Character vector of transcription-factor symbols to include.
 #' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
@@ -1433,7 +1433,7 @@ plot_covfloor_sensitivity <- function(cf_result) {
          y = "event position (bp, TSS-relative)",
          title = "cov_floor sensitivity of coverage-aware events",
          subtitle = "Flat lines = robust call | drift to the left = floor-sensitive rescue") +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(legend.position = "bottom")
 }
 
@@ -1448,7 +1448,7 @@ plot_covfloor_sensitivity <- function(cf_result) {
 #' what the s/C correction is doing at each event: where labeling
 #' opportunity was scarce versus where β is simply tracking strong
 #' enrichment.
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param tf_name Symbol of the single transcription factor to plot.
 #' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
 #' @param weight_mode Region-weight mode: "z" (default, signed z from p), "mod_t", "lfc_pos", "lfc_signed", or "lfc_x_negp".
@@ -1552,7 +1552,7 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
          subtitle = sprintf("\u03c3 = %d bp | cov_floor = %g | %d event(s)",
                              kernel_sigma, result$cov_floor %||% 0.05,
                              nrow(ev))) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(strip.text = element_text(face = "bold"))
   if (!is.null(ev_df))
     p <- p + geom_point(data = ev_df,
@@ -1574,7 +1574,7 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
 #'
 #'   Steps A1-A6, B1-B3, C1-C3, D1-D3 (coverage-aware diagnostics).
 #'
-#' @param result        From run_caspex()
+#' @param result        From run_glproxscape()
 #' @param out_dir       Output directory (created if missing)
 #' @param n_perm        Number of permutations for the null distribution
 #' @param sigmas        Kernel widths for the sensitivity grid
@@ -1590,22 +1590,22 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
 #' @return An invisible list of all generated objects
 #' @examples
 #' \dontrun{
-#' run_caspex_extras(res)
+#' run_glproxscape_extras(res)
 #' }
 #' @export
-run_caspex_extras <- function(result,
-                              out_dir        = "caspex_output/extras",
+run_glproxscape_extras <- function(result,
+                              out_dir        = "glproxscape_output/extras",
                               n_perm         = 500,
                               sigmas         = c(100, 200, 250, 300, 500),
                               cov_floors     = c(0.02, 0.05, 0.10, 0.20),
                               one_pager_tfs  = NULL,
                               skip           = character(0)) {
   if (missing(result) || is.null(result))
-    stop("run_caspex_extras() needs the object returned by run_caspex(). ",
-         "Call run_caspex_extras(result) \u2014 do not pass NULL.")
+    stop("run_glproxscape_extras() needs the object returned by run_glproxscape(). ",
+         "Call run_glproxscape_extras(result) \u2014 do not pass NULL.")
   for (f in c("long_data", "spatial_df", "pos_map"))
     if (is.null(result[[f]]))
-      stop("result$", f, " is NULL. Did run_caspex() finish successfully?")
+      stop("result$", f, " is NULL. Did run_glproxscape() finish successfully?")
 
   dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
   out_dir_abs <- normalizePath(out_dir, mustWork = FALSE)
@@ -1617,7 +1617,7 @@ run_caspex_extras <- function(result,
   # `out` is an environment, not a list, so step expressions evaluated by
   # safely() can mutate it via `out$x <- val` (in-place reference semantics).
   # A plain list would require `<<-`, which doesn't work here: the step
-  # expression is captured as a promise whose environment is run_caspex_extras's
+  # expression is captured as a promise whose environment is run_glproxscape_extras's
   # eval frame, so `<<-` skips that frame and walks up to globalenv looking for
   # `out` \u2014 fails with "object 'out' not found". Environment fix sidesteps that.
   out         <- new.env(parent = emptyenv())

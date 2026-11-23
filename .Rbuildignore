@@ -14,6 +14,11 @@
 ^scratch$
 ^\.DS_Store$
 ^\.claude$
+^future_improvements\.md$
 ^vignettes/.*\.html$
 ^vignettes/.*_cache$
 ^vignettes/.*_files$
+^\.Rhistory$
+^\.\.Rcheck$
+^README_update_December2026\.md$
+\.DS_Store$

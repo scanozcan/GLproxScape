@@ -1,5 +1,5 @@
 # =============================================================================
-# caspex_chipatlas.R \u2014 ChIP-Atlas peak backend for CasPEX
+# glproxscape_chipatlas.R \u2014 ChIP-Atlas peak backend for CasPEX
 # -----------------------------------------------------------------------------
 # Pulls public ChIP-seq peak calls from ChIP-Atlas (chip-atlas.dbcls.jp) and
 # exposes them as a supplementary track beneath the predicted-event bubbles in
@@ -41,14 +41,14 @@
 # ChIP-Atlas publishes its per-SRX BEDs and the experimentList.tab under
 # per-genome subtrees keyed by UCSC-style assembly codes. We expose a small
 # Ensembl-species -> ChIP-Atlas genome lookup so callers can pass the same
-# `species` arg they already give run_caspex (mus_musculus, homo_sapiens, ...)
+# `species` arg they already give run_glproxscape (mus_musculus, homo_sapiens, ...)
 # without thinking about UCSC assembly codes. Returns NULL for unknown species
 # so the caller can surface a clean error rather than silently fetching the
 # wrong genome's BEDs.
 #
 # Default mapping is the LATEST ChIP-Atlas-supported assembly per species; if
 # you need a specific older assembly (hg19, mm9), pass `chipatlas_genome`
-# explicitly to run_caspex() to override the auto-derivation.
+# explicitly to run_glproxscape() to override the auto-derivation.
 .SPECIES_TO_CHIPATLAS_GENOME <- list(
   homo_sapiens               = "hg38",
   mus_musculus               = "mm10",
@@ -452,13 +452,17 @@ download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
   # ERX (ENA) \u2014 followed by a tab. A previous failed download could leave an
   # HTML stub in the cache; we reject anything that doesn't match the
   # expected pattern.
-  looks_like_exp_list <- function(first_line) {
-    length(first_line) >= 1 &&
-      grepl("^[SDE]RX[0-9]+\t", first_line[[1]])
+  # Recent releases list non-SRA records first (e.g. TAIR annotation tracks
+  # such as "ATT36a16a2505<TAB>TAIR12<TAB>..."), so look for an experiment
+  # record anywhere in the first lines, not only in line 1.
+  looks_like_exp_list <- function(head_lines) {
+    length(head_lines) >= 1 &&
+      !grepl("^\\s*<", head_lines[[1]]) &&
+      any(grepl("^[SDE]RX[0-9]+\t", head_lines))
   }
   if (file.exists(fpath) && !force) {
     ok_size <- file.size(fpath) > 50e6    # file is typically 300+ MB
-    first   <- tryCatch(readLines(fpath, n = 1, warn = FALSE),
+    first   <- tryCatch(readLines(fpath, n = 20000, warn = FALSE),
                         error = function(e) "")
     ok_head <- looks_like_exp_list(first)
     if (ok_size && ok_head) return(fpath)
@@ -471,6 +475,11 @@ download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
   url <- .chipatlas_experiment_list_url()
   if (!quiet) message("  Downloading ChIP-Atlas experimentList (~300 MB, one-time)...")
   # ChIP-Atlas is served over HTTPS; mode="wb" for cross-platform safety.
+  # R's default timeout (60 s for the whole file) needs ~6 MB/s for this
+  # ~340 MB file; allow up to one hour so slow connections still finish.
+  old_timeout <- getOption("timeout")
+  on.exit(options(timeout = old_timeout), add = TRUE)
+  options(timeout = max(3600, old_timeout %||% 0))
   utils::download.file(url, fpath, mode = "wb", quiet = quiet)
   if (!file.exists(fpath) || file.size(fpath) < 50e6) {
     sz <- if (file.exists(fpath)) file.size(fpath) else 0
@@ -478,7 +487,7 @@ download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
     stop("experimentList.tab download produced a truncated file (",
          sz, " bytes); try again or check network.")
   }
-  first <- readLines(fpath, n = 1, warn = FALSE)
+  first <- readLines(fpath, n = 20000, warn = FALSE)
   if (!looks_like_exp_list(first)) {
     file.remove(fpath)
     stop("experimentList.tab first line doesn't look like an ",
@@ -590,7 +599,7 @@ download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
   if (sum(keep) == 0) {
     warning("ChIP-Atlas: 0 rows matched ", genome, " + (TF | Histone) filter. ",
             "Check the antigen_class breakdown above and update ",
-            "keep_class_patterns in caspex_chipatlas.R, or verify that ",
+            "keep_class_patterns in glproxscape_chipatlas.R, or verify that ",
             "ChIP-Atlas has data for the '", genome, "' assembly.")
   }
   df[keep, , drop = FALSE]
@@ -603,17 +612,71 @@ download_chipatlas_experiment_list <- function(force = FALSE, quiet = FALSE) {
 #' @return character vector of experiment IDs (SRX/DRX/ERX), ordered
 #'   newest-first by numeric suffix within each prefix.
 #' @noRd
-chipatlas_srx_for_tf <- function(tf, genome = "hg38") {
+chipatlas_srx_for_tf <- function(tf, genome = "hg38", tagged = TRUE) {
   el <- .chipatlas_experiment_list(genome = genome)
   hit <- which(toupper(el$antigen) == toupper(tf))
-  if (!length(hit)) return(character(0))
   ids <- el$srx[hit]
+  # Tagged pulldowns of this TF that ChIP-Atlas files under "Epitope tags",
+  # "GFP" or "Biotin" instead of the TF (FLAG-, HA-, V5-, GFP-, biotin-tagged
+  # constructs). Tagged pulldowns filed under the TF itself are already in
+  # `ids`. Always included; see .chipatlas_tagged_srx().
+  if (isTRUE(tagged)) {
+    ids <- unique(c(ids, .chipatlas_tagged_srx(tf, genome)))
+  } else {
+    # TF-antibody pulldowns only: drop tagged pulldowns filed under the TF too
+    tab <- .chipatlas_pulldown_table(genome)
+    ids <- setdiff(ids, tab$srx[toupper(tab$target) == toupper(tf)])
+  }
+  if (!length(ids)) return(character(0))
   # ChIP-Atlas stores experiments from SRA (SRX), DDBJ (DRX), and ENA (ERX).
   # Strip any 3-letter prefix before ordering so DRX1234567 sorts by 1234567.
   # Accession numbers within each prefix are monotonic in submission date.
   ord <- order(suppressWarnings(as.integer(sub("^[SDE]RX", "", ids))),
                decreasing = TRUE)
   ids[ord]
+}
+
+# ---- tagged pulldowns ----------------------------------------------------------
+
+# In-memory copy of the shipped pulldown tables (one per genome).
+.chipatlas_pulldown_env <- new.env(parent = emptyenv())
+
+#' Table of tagged ChIP-Atlas pulldowns (srx, filed_as, target, tag, ...).
+#'
+#' Built from ChIP-Atlas experimentList.tab (same table as proMotif): tagged
+#' pulldowns filed under the TF (antibody metadata names a tag) and
+#' tag-filed pulldowns ("Epitope tags", "GFP", "Biotin") whose title names the
+#' TF. Shipped in inst/extdata for hg38 and mm10.
+#' @noRd
+.chipatlas_pulldown_table <- function(genome = "hg38") {
+  if (!is.null(.chipatlas_pulldown_env[[genome]]))
+    return(.chipatlas_pulldown_env[[genome]])
+  f <- system.file("extdata", sprintf("chipatlas_pulldown_%s.tsv.gz", genome),
+                   package = "GLproxScape")
+  tab <- if (nzchar(f) && file.exists(f))
+    utils::read.delim(f, stringsAsFactors = FALSE, quote = "",
+                      comment.char = "", colClasses = "character")
+  else data.frame(srx = character(0), filed_as = character(0),
+                  target = character(0), stringsAsFactors = FALSE)
+  .chipatlas_pulldown_env[[genome]] <- tab
+  tab
+}
+
+#' SRX accessions of tagged pulldowns of a TF filed under a tag antigen.
+#' @noRd
+.chipatlas_tagged_srx <- function(tf, genome = "hg38") {
+  tab <- .chipatlas_pulldown_table(genome)
+  if (!nrow(tab)) return(character(0))
+  hit <- toupper(tab$target) == toupper(tf) & tab$filed_as != tab$target
+  unique(tab$srx[hit])
+}
+
+#' Pulldown type of SRX accessions for a TF: "tagged" or "native".
+#' @noRd
+.chipatlas_pulldown_type <- function(srx, tf, genome = "hg38") {
+  tab <- .chipatlas_pulldown_table(genome)
+  tagged <- tab$srx[toupper(tab$target) == toupper(tf)]
+  ifelse(srx %in% tagged, "tagged", "native")
 }
 
 # ---- per-SRX BED fetch -------------------------------------------------------
@@ -827,9 +890,23 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
                                   is_special_interest = FALSE,
                                   special_interest_cap = NULL,
                                   quiet = TRUE,
-                                  genome = "hg38") {
-  srx_ids <- chipatlas_srx_for_tf(tf, genome = genome)
+                                  genome = "hg38",
+                                  cell_type = NULL,
+                                  tagged = TRUE) {
+  srx_ids <- chipatlas_srx_for_tf(tf, genome = genome, tagged = tagged)
   if (!length(srx_ids)) return(NULL)
+  el  <- .chipatlas_experiment_list(genome = genome)
+  # With a cell type, experiments from that cell type are moved to the front
+  # (newest first within each group) so the per-TF cap keeps them all.
+  matched_srx <- character(0)
+  if (!is.null(cell_type) && nzchar(cell_type)) {
+    i <- match(srx_ids, el$srx)
+    m <- .chipatlas_celltype_match(el$cell_type[i], cell_type) |
+         .chipatlas_celltype_match(el$cell_type_class[i], cell_type)
+    m[is.na(m)] <- FALSE
+    matched_srx <- srx_ids[m]
+    srx_ids <- c(srx_ids[m], srx_ids[!m])
+  }
   # Cap selection logic:
   #   - Standard TF: take the newest `max_experiments` SRX.
   #   - Special-interest TF, special_interest_cap = NULL: scan ALL SRX
@@ -846,10 +923,10 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
       srx_ids <- srx_ids[seq_len(max_experiments)]
   }
   n_srx_scanned <- length(srx_ids)
+  n_srx_matched <- sum(srx_ids %in% matched_srx)
   win <- .chipatlas_window_coords(gene_info, promoter_info, upstream, downstream,
                                    chipatlas_genome = genome)
 
-  el  <- .chipatlas_experiment_list(genome = genome)
   ct_lookup <- setNames(el$cell_type, el$srx)
   cc_lookup <- setNames(el$cell_type_class, el$srx)
 
@@ -862,6 +939,8 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
     df$srx <- srx
     df$cell_type       <- ct_lookup[[srx]] %||% NA_character_
     df$cell_type_class <- cc_lookup[[srx]] %||% NA_character_
+    df$pulldown          <- .chipatlas_pulldown_type(srx, tf, genome)
+    df$cell_type_matched <- srx %in% matched_srx
     df
   })
   pieces <- pieces[!vapply(pieces, is.null, logical(1))]
@@ -874,17 +953,21 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
                       start = integer(0), end = integer(0),
                       score = numeric(0), pos_rel = numeric(0),
                       start_rel = numeric(0), end_rel = numeric(0),
+                      pulldown = character(0), cell_type_matched = logical(0),
                       stringsAsFactors = FALSE)
     attr(out, "n_srx_scanned")       <- n_srx_scanned
+    attr(out, "n_srx_matched")       <- n_srx_matched
     attr(out, "is_special_interest") <- is_special_interest
     return(out)
   }
   out <- do.call(rbind, pieces)
   rownames(out) <- NULL
   out <- out[, c("srx", "cell_type_class", "cell_type", "chr", "start", "end",
-                 "score", "pos_rel", "start_rel", "end_rel")]
+                 "score", "pos_rel", "start_rel", "end_rel", "pulldown",
+                 "cell_type_matched")]
   # Attach scan-size metadata for downstream "X SRX / Y experiments" display.
   attr(out, "n_srx_scanned")       <- n_srx_scanned
+  attr(out, "n_srx_matched")       <- n_srx_matched
   attr(out, "is_special_interest") <- is_special_interest
   out
 }
@@ -904,8 +987,16 @@ fetch_chipatlas_peaks <- function(tf, gene_info, promoter_info,
 #' @param quiet Logical; suppress progress messages when TRUE.
 #' @param genome ChIP-Atlas genome assembly code (e.g. "hg38", "mm10").
 #'   Defaults to "hg38" for backward compatibility. Use the
-#'   `chipatlas_genome` argument on \code{run_caspex()} to auto-derive
+#'   `chipatlas_genome` argument on \code{run_glproxscape()} to auto-derive
 #'   this from the run's `species` argument (recommended).
+#' @param cell_type Optional experimental cell type. Experiments from this
+#'   cell type are scanned first (so the per-TF cap keeps them) and their
+#'   peaks are flagged in the \code{cell_type_matched} column. Tagged
+#'   pulldowns (FLAG / HA / GFP / biotin-tagged TFs, including those
+#'   ChIP-Atlas files under "Epitope tags") are included by default; the
+#'   \code{pulldown} column marks them.
+#' @param tagged Include tagged pulldowns (default \code{TRUE});
+#'   \code{FALSE} uses TF-antibody experiments only.
 #' @examples
 #' \dontrun{
 #' gi  <- lookup_gene("TERT")
@@ -920,7 +1011,9 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                                special_interest_gene = NULL,
                                special_interest_cap  = NULL,
                                quiet = TRUE,
-                               genome = "hg38") {
+                               genome = "hg38",
+                               cell_type = NULL,
+                               tagged = TRUE) {
   if (!length(tfs)) return(list())
   # Normalize special-interest list for case-insensitive matching.
   sig_set <- if (is.null(special_interest_gene)) character(0)
@@ -963,7 +1056,9 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                             is_special_interest = is_sig,
                             special_interest_cap = special_interest_cap,
                             quiet = quiet,
-                            genome = genome),
+                            genome = genome,
+                            cell_type = cell_type,
+                            tagged = tagged),
       error = function(e) {
         warning("ChIP-Atlas fetch failed for ", tf, ": ", conditionMessage(e))
         NULL
@@ -1073,7 +1168,7 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
 #' For the histone-marks page in the epigenetic deck, one row of bars is
 #' rendered per mark per bucket — six rows of cell-type-matched on top, six
 #' rows of all-cell-types-aggregated on bottom. See plot_histone_marks_locus()
-#' in caspex_epigenetic.R.
+#' in glproxscape_epigenetic.R.
 #'
 #' @return named list `list(matched = list(mark = peaks_df, ...),
 #'                          all     = list(mark = peaks_df, ...),

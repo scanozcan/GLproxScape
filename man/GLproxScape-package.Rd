@@ -20,15 +20,15 @@ factors.
 \section{Main entry points}{
 
 \describe{
-  \item{\code{\link{run_caspex}}}{Top-level pipeline: gene lookup, gRNA
+  \item{\code{\link{run_glproxscape}}}{Top-level pipeline: gene lookup, gRNA
     matching, signal modelling, motif scan, deconvolution, plotting, and
     ChIP-Atlas overlay.}
-  \item{\code{\link{run_caspex_extras}}}{Diagnostic plot pack
+  \item{\code{\link{run_glproxscape_extras}}}{Diagnostic plot pack
     (A1-A6, B1-B3, C1-C3, D1-D3) for a completed run.}
-  \item{\code{\link{run_caspex_epigenetic}}}{Zone-based deconvolution
+  \item{\code{\link{run_glproxscape_epigenetic}}}{Zone-based deconvolution
     for chromatin readers/writers/erasers/remodellers without a
     sequence-specific motif.}
-  \item{\code{\link{load_caspex_inputs}}}{Read the
+  \item{\code{\link{load_glproxscape_inputs}}}{Read the
     \code{grnas.tsv} + per-region \code{Region*.txt} input layout.}
 }
 }

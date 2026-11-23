@@ -26,16 +26,17 @@ chromatin-binding landscape via a Gaussian labelling-kernel forward
 model. Each guide's biotinylation footprint is modelled as a Gaussian
 cone (default σ = 300 bp); per-region enrichment values are
 forward-smeared into a continuous spatial track *s(x)*, normalised by
-guide coverage *C(x)* to recover an occupancy estimate β(x) = s(x) /
-max(C(x), c_min · max C). Each protein is classified against curated
+guide coverage *C(x)* to give the coverage-normalized track
+s̃(x) = s(x) / max(C(x), c_min · max C), a kernel-regression estimate of
+enrichment along the locus. Each protein is classified against curated
 transcription-factor and chromatin-regulator lists and routed through
 one of three analytical paths:
 
-* **Motif-anchored deconvolution** for transcription factors with a
-  motif entry. Non-negative least squares against a
-  position-weight-matrix basis (JASPAR by default, HOCOMOCO v12 optional
-  via `motif_search_engine`) recovers discrete binding events with
-  bp-level positions and per-event amplitudes.
+* **Motif-anchored event calling** for transcription factors with a
+  motif entry. Motif sites inside enriched zones of the
+  coverage-normalized track become binding events with bp-level
+  positions and per-event weights. Motifs come from JASPAR (default),
+  HOCOMOCO v12 or CIS-BP 3.10 (`motif_search_engine`).
 * **Motif-free peak prediction** for transcription factors absent from
   the motif database. Peaks are called directly on the spatial signal
   *s(x)*, so motif-less TFs still receive position predictions (flagged
@@ -46,7 +47,18 @@ one of three analytical paths:
   of multi-subunit complexes (e.g. MLL4/WBP7).
 
 An optional ChIP-Atlas overlay cross-references each prediction
-against independent public ChIP-seq peaks for orthogonal validation.
+against independent public ChIP-seq peaks for orthogonal validation,
+including tagged pulldowns (FLAG / HA / GFP / biotin-tagged TFs). With
+`cell_type` set, experiments from the experimental cell type are
+reported separately, the histone-mark deck uses the same cell type, and
+human runs are annotated with the cell line's RNA expression from the
+Human Protein Atlas.
+
+> **New in version 0.2.0 (December 2026):** CIS-BP 3.10 motif engine
+> (human, mouse and other species), tagged ChIP-Atlas pulldowns, one
+> `cell_type` argument for all cell-type-aware steps, and cell-line
+> expression annotation. See
+> [README_update_December2026.md](README_update_December2026.md).
 
 The package is the analysis backbone behind the GLproxScape paper
 (Ozcan *et al.* 2026) and ships a bundled reanalysis of the
@@ -59,7 +71,7 @@ example.
 
 <p align="center">
   <em>From CASPEX proximity labelling and per-region proteomics to a
-  deconvolved chromatin-occupancy landscape — inputs, processing, and
+  spatially resolved chromatin-occupancy landscape — inputs, processing, and
   outputs at a glance.</em>
 </p>
 
@@ -74,12 +86,14 @@ remotes::install_github("scanozcan/GLproxScape", build_vignettes = TRUE)
 `vignette("foxp2-mackenzie", package = "GLproxScape")` is available;
 drop it for a faster install if you don't need the vignette HTML.
 
-**Requirements.** `run_caspex()` queries live web services on every
+**Requirements.** `run_glproxscape()` queries live web services on every
 run: Ensembl (gene lookup + promoter sequence) and JASPAR (motif
 PWMs), so an internet connection is required. Optional services are
 fetched only when enabled and cached locally after the first call —
-ChIP-Atlas peaks (`chipatlas = TRUE`) and the HOCOMOCO bundle
-(`motif_search_engine = "hocomoco"`), both cached under
+ChIP-Atlas peaks (`chipatlas = TRUE`), the HOCOMOCO bundle
+(`motif_search_engine = "hocomoco"`), the CIS-BP species archive
+(`motif_search_engine = "cisbp"`) and the Human Protein Atlas cell-line
+table (`cell_type` on a human run), all cached under
 `tools::R_user_dir("caspex", "cache")`.
 
 ## Quick start
@@ -90,9 +104,9 @@ library(GLproxScape)
 # Use the bundled FOXP2 example dataset (MacKenzie et al., 2026)
 inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
                           package = "GLproxScape")
-inputs <- load_caspex_inputs(inputs_dir)
+inputs <- load_glproxscape_inputs(inputs_dir)
 
-res <- run_caspex(
+res <- run_glproxscape(
   gene             = "FOXP2",
   transcript       = "ENST00000901759",   # MacKenzie's HEK293 active TSS1
   grnas            = inputs$grnas,
@@ -104,6 +118,7 @@ res <- run_caspex(
   pval_thresh      = 0.5,
   motif_thresh     = 0.75,
   chipatlas        = FALSE,               # set TRUE for the ChIP-Atlas overlay (slow on a cold cache)
+  cell_type        = "HEK293",            # optional: cell-type-matched ChIP-Atlas, histone marks, HPA expression
   extras           = TRUE,                # diagnostic plot pack       -> <out_dir>/extras/
   epigenetic       = TRUE                 # chromatin-factor zone deck -> <out_dir>/epigenetic/
 )
@@ -116,9 +131,9 @@ head(res$binding_events[order(-res$binding_events$weight), ], 10)
 add the orthogonal-validation track from public ChIP-seq peaks (one
 download per scanned TF on first run; cached locally thereafter).
 
-A single `run_caspex()` call writes the full deliverable set to
+A single `run_glproxscape()` call writes the full deliverable set to
 `out_dir`: the main TF deck (gRNA layout, per-region heatmap,
-motif-track PDF, per-TF deconvolution detail pages, binding-events
+motif-track PDF, per-TF binding-event detail pages, binding-events
 CSV), the diagnostic plot pack under `<out_dir>/extras/`, and the
 zone-based chromatin-factor deck under `<out_dir>/epigenetic/`. The
 returned object exposes the corresponding R objects as
@@ -133,8 +148,8 @@ directly — useful for re-running just one phase while keeping the
 main TF deck cached in memory:
 
 ```r
-extras_out <- run_caspex_extras(res, out_dir = file.path(res$out_dir, "extras"))
-epi_out    <- run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epigenetic"))
+extras_out <- run_glproxscape_extras(res, out_dir = file.path(res$out_dir, "extras"))
+epi_out    <- run_glproxscape_epigenetic(res, out_dir = file.path(res$out_dir, "epigenetic"))
 ```
 
 ## How to use it on your own data
@@ -142,8 +157,8 @@ epi_out    <- run_caspex_epigenetic(res, out_dir = file.path(res$out_dir, "epige
 GLproxScape expects each promoter-tiling experiment to live in a
 folder with one **manifest** file plus one **proteomics table** per
 gRNA region. Once the folder is laid out, the entire analysis is two
-function calls — `load_caspex_inputs()` to read the manifest, then
-`run_caspex()` for everything else.
+function calls — `load_glproxscape_inputs()` to read the manifest, then
+`run_glproxscape()` for everything else.
 
 ### Folder layout
 
@@ -226,10 +241,10 @@ Recognised name aliases:
 If you don't have a `t` column, GLproxScape derives a signed z-score
 from the p-value as the default weight (`weight_mode = "z"`). If you
 do have moderated-t from limma, set `weight_mode = "mod_t"` in
-`run_caspex()` to use it.
+`run_glproxscape()` to use it.
 
 The TF vs. chromatin-factor classification is handled inside
-`run_caspex()` by auto-loading the bundled `TFLibrary.txt` and
+`run_glproxscape()` by auto-loading the bundled `TFLibrary.txt` and
 `EpiGenes_main.csv`. To pin a custom universe, pass a character vector
 to `tf_universe` or `epi_universe` and it overrides the bundled
 default. No TF column is needed inside the per-region tables.
@@ -265,10 +280,10 @@ finishes with a one-line recommendation like:
 ```
 === Recommendation ===
 Best transcript: ENST00000XXXXXXX  (N / N sgRNAs matched)
-Use in run_caspex():  transcript = "ENST00000XXXXXXX"
+Use in run_glproxscape():  transcript = "ENST00000XXXXXXX"
 ```
 
-Paste the recommended ENST into `run_caspex(transcript = ...)` and
+Paste the recommended ENST into `run_glproxscape(transcript = ...)` and
 you're done.
 
 The recommendation just picks the transcript with the most sgRNA
@@ -294,17 +309,17 @@ opened in the parent folder:
 library(GLproxScape)
 
 # 1) Load the inputs
-inputs <- load_caspex_inputs("my_gene_analysis/inputs")
+inputs <- load_glproxscape_inputs("my_gene_analysis/inputs")
 
 # 2) Run the full pipeline
-res <- run_caspex(
+res <- run_glproxscape(
   gene             = "YOUR_GENE",            # HGNC symbol
   transcript       = "canonical",          # or "ENST..." for an alt-promoter
   grnas            = inputs$grnas,
   data_files       = inputs$data_files,
   upstream         = 3250,                  # bp window upstream of TSS
   downstream       = 100,                   # bp window downstream of TSS
-  out_dir          = "my_gene_analysis/caspex_output",
+  out_dir          = "my_gene_analysis/glproxscape_output",
   weight_mode      = "z",
   motif_thresh     = 0.75,                  # JASPAR PWM threshold (frac of max)
   chipatlas        = TRUE,                  # set FALSE if you don't want the overlay
@@ -330,8 +345,8 @@ to skip the corresponding phase. Pass phase-specific parameters via
 `extras_args = list(...)` / `epigenetic_args = list(...)` without
 bloating the main signature.
 
-After this, `my_gene_analysis/caspex_output/` contains the
-binding-deconvolution PDF, the per-region heatmap, the gRNA-positions
+After this, `my_gene_analysis/glproxscape_output/` contains the
+binding-event deck (`binding_events.pdf`), the per-region heatmap, the gRNA-positions
 plot, and the predictions CSVs.
 
 ### Reading the output
@@ -349,7 +364,8 @@ Key columns:
   upstream of the TSS, positive is downstream. This is the same
   coordinate frame as the `check_transcripts()` sgRNA positions, so
   events land in the span your guides tile.
-- `weight` — the deconvolved event amplitude (recovered occupancy).
+- `weight` — the event weight (coverage-normalized enrichment at the
+  event, optionally scaled by the motif score).
   Higher = stronger predicted binding; rank by this to read off the
   top calls.
 - `motif_based` — `TRUE` if the event is anchored to a JASPAR/HOCOMOCO
@@ -360,15 +376,15 @@ Key columns:
   events far from any guide or in low-coverage gaps are less reliable.
 
 The zone-based predictions for epigenetic factors live separately on
-`res$epigenetic_result` and under `<out_dir>/epigenetic/`. The deconvolution PDF visualises the
+`res$epigenetic_result` and under `<out_dir>/epigenetic/`. The binding-event deck visualises the
 same events as bubbles along the promoter; the per-region heatmap and
 gRNA-positions plot are diagnostics for the underlying signal.
 
-## `run_caspex()` parameter reference
+## `run_glproxscape()` parameter reference
 
 Full list of every argument, its default, and the allowed values. Use
 this as a quick lookup; the same content lives (with longer prose) in
-`?run_caspex`.
+`?run_glproxscape`.
 
 #### Required inputs
 
@@ -420,14 +436,25 @@ this as a quick lookup; the same content lives (with longer prose) in
   2^(score_frac - 1)).
 - `motif_search_engine` = `"jaspar"` — motif database used for per-TF
   PWM lookup: `"jaspar"` (REST per-TF) | `"hocomoco"` (MEME bundle
-  downloaded once and cached to `tools::R_user_dir("caspex", "cache")`).
+  downloaded once and cached to `tools::R_user_dir("caspex", "cache")`)
+  | `"cisbp"` (CIS-BP 3.10 species archive, downloaded once and cached).
+- `cisbp_status` = `"direct"` — CIS-BP motifs: `"direct"` (experimental)
+  | `"inferred"` (fall back to motifs inferred from DNA-binding-domain
+  similarity, useful for species with few measured motifs).
+- `cisbp_prefer` = `"in_vitro"` — one motif per TF chosen by source:
+  high-throughput in vitro (HT-SELEX, GHT-SELEX, PBM, SMiLE-seq) first,
+  motifs imported from JASPAR / HOCOMOCO last | `"none"`.
+- `cisbp_pick` = `"medoid"` — within the chosen tier, the motif most
+  similar to the TF's other motifs | `"ic"` (highest information content).
+- `cisbp_species` = `NULL` — CIS-BP species; derived from `species`
+  (e.g. `"mus_musculus"` → `"Mus_musculus"`).
 - `hocomoco_version` = `"v12"` — HOCOMOCO release when
   `motif_search_engine = "hocomoco"`: `"v12"` (CORE bundle, default)
   | `"v11"` (full mono bundle). Ignored otherwise.
 - `hocomoco_species` = `"human"` — `"human"` | `"mouse"` when
   `motif_search_engine = "hocomoco"`. Ignored otherwise.
 
-#### Deconvolution kernel + filters
+#### Labeling kernel + event-calling filters
 
 - `kernel_sigma` = `300` — Gaussian labelling-kernel width in bp.
 - `min_weight_frac` = `0.15` — events below this fraction of the
@@ -475,7 +502,7 @@ this as a quick lookup; the same content lives (with longer prose) in
 #### Bootstrap diagnostic
 
 - `position_stability` = `"none"` — `"none"` | `"wild_bootstrap"`
-  (Rademacher Wild bootstrap on NNLS residuals, adds four columns to
+  (Rademacher wild bootstrap on the model residuals, adds four columns to
   `binding_events`).
 - `n_bootstrap` = `200L` — bootstrap draws.
 
@@ -496,10 +523,28 @@ this as a quick lookup; the same content lives (with longer prose) in
 - `special_interest_cap` = `NULL` — optional integer cap for
   special-interest TFs; `NULL` = scan all SRX.
 - `chipatlas_quiet` = `TRUE` — suppress per-SRX download messages.
+- `chipatlas_tagged` = `TRUE` — include tagged pulldowns (FLAG / HA /
+  V5 / GFP / biotin-tagged TFs, including those ChIP-Atlas files under
+  "Epitope tags", "GFP" or "Biotin"); the `pulldown` column of each peak
+  table marks them. `FALSE` uses TF-antibody experiments only.
+
+#### Cell type
+
+- `cell_type` = `NULL` — the experimental cell line or cell type (e.g.
+  `"HEK293"`), used by every cell-type-aware step: ChIP-Atlas experiments
+  from this cell type are scanned first and reported separately
+  (`chipatlas_support_by_cell_type.csv`, `res$chipatlas_support`); the
+  histone-mark deck of `run_glproxscape_epigenetic()` uses it as its
+  cell-type filter; and for `species = "homo_sapiens"` the detected TFs
+  are annotated with the cell line's RNA expression from the Human
+  Protein Atlas (`tf_expression_annotation.csv`,
+  `tf_expression_families.pdf`, `res$expression`). For other species,
+  use `annotate_tf_expression()` with
+  `load_cell_line_expression(file = ...)`.
 
 #### Detail deck filters
 
-- `detail_top_n` = `100` — number of TFs on the per-TF deconvolution
+- `detail_top_n` = `100` — number of TFs on the per-TF binding-event
   detail PDF.
 - `deconv_min_motif_hits` = `0` — minimum JASPAR hits in window for
   a TF to appear on the detail deck (0 disables).
@@ -509,7 +554,7 @@ this as a quick lookup; the same content lives (with longer prose) in
 
 #### Output writing
 
-- `out_dir` = `"caspex_output"` — output directory (created if absent).
+- `out_dir` = `"glproxscape_output"` — output directory (created if absent).
   Subfolders `extras/` and `epigenetic/` are created inside it when
   the corresponding phase flags are TRUE (default).
 - `save_plots` = `TRUE` — write the PDF deck.
@@ -517,18 +562,19 @@ this as a quick lookup; the same content lives (with longer prose) in
 
 #### Optional downstream phases
 
-- `extras` = `TRUE` — run `run_caspex_extras()` after the main
+- `extras` = `TRUE` — run `run_glproxscape_extras()` after the main
   pipeline; writes the diagnostic plot pack to `<out_dir>/extras/`
   and returns the result on `res$extras_result`.
-- `epigenetic` = `TRUE` — run `run_caspex_epigenetic()` after the
+- `epigenetic` = `TRUE` — run `run_glproxscape_epigenetic()` after the
   main pipeline; writes the zone-based chromatin-factor deck to
   `<out_dir>/epigenetic/` and returns the result on
   `res$epigenetic_result`.
 - `extras_args` = `list()` — named list of arguments forwarded to
-  `run_caspex_extras()`.
+  `run_glproxscape_extras()`.
 - `epigenetic_args` = `list()` — named list of arguments forwarded
-  to `run_caspex_epigenetic()` (e.g. `histone_cell_type`,
-  `subtract_tf_overlap`, `complex_min_detected`).
+  to `run_glproxscape_epigenetic()` (e.g. `subtract_tf_overlap`,
+  `complex_min_detected`; `histone_cell_type` overrides `cell_type`
+  for the histone-mark deck only).
 
 ## Bundled example data
 
@@ -541,7 +587,7 @@ The folder is a self-contained input bundle: a `grnas.tsv` manifest
 (region → protospacer + per-region file) plus per-region `Region*.txt`
 proteomics tables with `logFC` and `P.Value` columns.
 
-The TF and chromatin-factor universes used by `run_caspex()` are
+The TF and chromatin-factor universes used by `run_glproxscape()` are
 bundled separately under `inst/extdata/databases/`
 (`TFLibrary.txt`, `EpiGenes_main.csv`, `EpiGenes_complexes.csv`),
 sourced from the Lambert *et al.* TF list and the EpiFactors database
@@ -564,7 +610,7 @@ overlay.
 
 ## Workflow summary
 
-The pipeline runs in one call (`run_caspex`) that internally chains:
+The pipeline runs in one call (`run_glproxscape`) that internally chains:
 
 1. **Gene lookup** — resolves the canonical (or explicitly pinned)
    Ensembl transcript and fetches the promoter sequence over
@@ -581,26 +627,26 @@ The pipeline runs in one call (`run_caspex`) that internally chains:
    `motif_thresh × max_score`. The same fractional threshold is used
    for both engines; HOCOMOCO matrices are typically higher information
    content so the absolute stringency is slightly stricter.
-5. **Coverage-aware deconvolution** — `β(x) = s(x) / max(C(x), cov_floor ·
-   max(C))` thresholded into zones, with one event emitted per JASPAR hit
-   inside each zone. Optional PWM-score weighting reshapes per-event
+5. **Coverage-normalized event calling** — `s̃(x) = s(x) / max(C(x), cov_floor ·
+   max(C))` thresholded into zones, with one event emitted per motif hit
+   inside each zone whose local value reaches the zone threshold. Optional PWM-score weighting reshapes per-event
    amplitudes (`motif_score_weight = "none" | "linear" | "log"`).
 6. **Edge guards + merge** — events outside the gRNA support cone
    (`edge_guard_frac`, `max_grna_distance`) are dropped; closely-spaced
-   events within `merge_dist` are merged into amplitude-weighted
-   clusters.
+   events within `merge_dist` are merged (weights summed; position = the
+   strongest motif by default).
 7. **(Optional) ChIP-Atlas overlay** — public ChIP-seq peaks for each
    deck TF rendered beneath the predicted event bubbles for independent
    validation. Per-SRX BEDs cached under `tools::R_user_dir("caspex",
    "cache")`.
-8. **Plotting + CSV write-out** — multi-page deconvolution PDF, motif
+8. **Plotting + CSV write-out** — multi-page binding-event PDF, motif
    track, gRNA-positions plot, per-TF binding-events CSV, spatial
    predictions CSV.
-9. **Diagnostic extras** — `run_caspex_extras()` produces the
+9. **Diagnostic extras** — `run_glproxscape_extras()` produces the
    per-TF one-pagers, σ-sensitivity sweep, gRNA jackknife, TF-pair
    co-occurrence triangle, and other diagnostic plots in
    `<out_dir>/extras/`. Skipped when `extras = FALSE`.
-10. **Chromatin-factor zone deck** — `run_caspex_epigenetic()` runs
+10. **Chromatin-factor zone deck** — `run_glproxscape_epigenetic()` runs
     the zone-based path for epigenetic factors that lack a
     sequence-specific motif, plus the histone-marks
     locus map and (when both EpiGenes CSVs are bundled or supplied) a
@@ -614,7 +660,7 @@ mathematical framing for every step.
 
 The MacKenzie FOXP2 analysis reported in the paper is reproducible
 end-to-end from the bundled `inst/extdata/examples/foxp2_mackenzie/`
-folder; the corresponding `run_caspex()` parameter settings live in
+folder; the corresponding `run_glproxscape()` parameter settings live in
 the FOXP2 vignette. The other published paper analyses (Myers *et al.*
 TERT and MYC, Pizzolato *et al.* FOXQ1, Gao *et al.* mouse Ripk3)
 ship as a Zenodo companion deposit alongside the manuscript
@@ -634,7 +680,7 @@ when you're picking it.
 
 Non-human datasets work end-to-end by passing the appropriate
 `species` argument (e.g. `species = "mus_musculus"` for the Gao
-*et al.* mouse Ripk3 reanalysis). `run_caspex()` then auto-routes
+*et al.* mouse Ripk3 reanalysis). `run_glproxscape()` then auto-routes
 the Ensembl gene lookup, promoter sequence fetch, and ChIP-Atlas
 overlay to the matching genome. Ensembl currently serves GRCm39
 for mouse while ChIP-Atlas's mouse corpus remains in mm10 (GRCm38);

@@ -1,14 +1,14 @@
 # =============================================================================
 # Engine \u2014 gene lookup, gRNA matching, signal modelling, motif scan, and
-# the deconvolution pipeline (run_caspex). Plotting helpers and the
+# the deconvolution pipeline (run_glproxscape). Plotting helpers and the
 # top-level user-facing entry points live here too. Internal utilities
 # (`%||%`, `COLS`, `.safe_pdf`) are in R/utils-internal.R; ChIP-Atlas
-# integration is in R/caspex_chipatlas.R; chromatin-factor zone path is
-# in R/caspex_epigenetic.R; diagnostic plots in R/caspex_extras.R.
+# integration is in R/glproxscape_chipatlas.R; chromatin-factor zone path is
+# in R/glproxscape_epigenetic.R; diagnostic plots in R/glproxscape_extras.R.
 # =============================================================================
 
 # Sticky flag historically used by the script-loading model to track
-# whether caspex_chipatlas.R had been sourced. In package context every
+# whether glproxscape_chipatlas.R had been sourced. In package context every
 # R/ file is loaded by the package machinery, so this is always TRUE.
 # Kept as a constant binding (not @export) so existing internal guards
 # `isTRUE(.caspex_chipatlas_loaded)` continue to evaluate correctly
@@ -26,7 +26,7 @@
 #' @param base_size base font size in points (default 11).
 #' @return A ggplot2 theme object.
 #' @noRd
-theme_caspex <- function(base_size = 11) {
+theme_glproxscape <- function(base_size = 11) {
   theme_minimal(base_size = base_size, base_family = "sans") +
     theme(
       plot.title       = element_text(face = "bold", size = base_size + 1),
@@ -119,7 +119,7 @@ load_region_data <- function(data_files,
 #'
 #' Parses a tab-separated manifest file (default `inputs/grnas.tsv`) listing
 #' per-region gRNA protospacer and logFC file, and returns the `grnas` +
-#' `data_files` named vectors expected by `run_caspex()`. This replaces the
+#' `data_files` named vectors expected by `run_glproxscape()`. This replaces the
 #' old hand-written vectors in the driver script.
 #'
 #' The manifest must have a header row with columns: `region`, `sequence`,
@@ -146,18 +146,18 @@ load_region_data <- function(data_files,
 #' # Use the bundled example dataset
 #' inputs_dir <- system.file("extdata/examples/foxp2_mackenzie",
 #'                           package = "GLproxScape")
-#' inputs <- load_caspex_inputs(inputs_dir)
+#' inputs <- load_glproxscape_inputs(inputs_dir)
 #' str(inputs)
 #'
 #' \dontrun{
 #' # Then feed into the pipeline:
-#' run_caspex(gene       = "<GENE_SYMBOL>",
+#' run_glproxscape(gene       = "<GENE_SYMBOL>",
 #'            grnas      = inputs$grnas,
 #'            data_files = inputs$data_files,
 #'            out_dir    = tempfile("run_"))
 #' }
 #' @export
-load_caspex_inputs <- function(inputs_dir = "inputs",
+load_glproxscape_inputs <- function(inputs_dir = "inputs",
                                 manifest   = "grnas.tsv") {
   if (!dir.exists(inputs_dir))
     stop("Inputs directory not found: ", inputs_dir,
@@ -246,7 +246,19 @@ ensembl_get <- function(path, params = list(), accept = "application/json") {
   # which then got blindly fed into gRNA matching as if it were raw
   # sequence, producing a uniform \u0394bp drift in pos_map between runs as
   # the JSON serializer reordered fields. Send Accept only.
-  res <- GET(url, add_headers(Accept = accept), timeout(20))
+  # 60 s per request and up to 3 attempts: Ensembl REST is occasionally slow,
+  # and a congested network should slow a run down, not stop it.
+  res <- NULL
+  for (attempt in 1:3) {
+    res <- tryCatch(GET(url, add_headers(Accept = accept), timeout(60)),
+                    error = function(e) e)
+    if (!inherits(res, "error") && status_code(res) < 500) break
+    if (attempt < 3) {
+      message("    Ensembl request failed (attempt ", attempt, "/3); retrying...")
+      Sys.sleep(5 * attempt)
+    }
+  }
+  if (inherits(res, "error")) stop(res)
   if (status_code(res) == 200) {
     if (accept == "text/plain") return(trimws(content(res, "text", encoding = "UTF-8")))
     return(content(res, "parsed", simplifyVector = FALSE))
@@ -366,7 +378,7 @@ fetch_promoter_seq <- function(gene_info, upstream = 2500, downstream = 500,
                                 species = NULL) {
   # Resolve species: explicit arg wins, else pull from gene_info (set by
   # lookup_gene()), else default to human for legacy call sites. Kept as an
-  # `if`-chain rather than `%||%` because caspex_analysis.R doesn't declare
+  # `if`-chain rather than `%||%` because glproxscape_analysis.R doesn't declare
   # that operator and we shouldn't force an R \u2265 4.4 dependency.
   if (is.null(species)) species <- gene_info$species
   if (is.null(species) || !nzchar(species)) species <- "homo_sapiens"
@@ -573,7 +585,7 @@ signed_z_from_p <- function(lfc, pval, pval_floor = .Machine$double.xmin) {
 #'   "lfc_pos"    — pmax(lfc, 0).  Effect size only, no significance.
 #'   "lfc_signed" — raw lfc (allows negative).
 #' @param df A single region's differential-statistics data.frame (name, logFC, P.Value, t).
-#' @param mode Region-weight mode; see weight_mode in run_caspex().
+#' @param mode Region-weight mode; see weight_mode in run_glproxscape().
 #' @noRd
 compute_region_weight <- function(df, mode = c("z", "mod_t", "lfc_x_negp",
                                                 "lfc_pos", "lfc_signed")) {
@@ -705,7 +717,7 @@ run_spatial_model <- function(long_data, pos_map,
 
 # In-session PWM cache. Keeps (tf_name, host) -> PWM object across repeated
 # fetches in the same R session. Critical for deterministic A/B comparisons
-# (e.g., `1-try-compare.R`) where two `run_caspex()` calls would otherwise
+# (e.g., `1-try-compare.R`) where two `run_glproxscape()` calls would otherwise
 # each hit the JASPAR API independently. For genes with multiple matrix
 # profiles (HOX family is the canonical case), two independent API calls
 # can return DIFFERENT matrices \u2014 different PWM \u2192 different score
@@ -713,7 +725,7 @@ run_spatial_model <- function(long_data, pos_map,
 # the first call resolved, so the two compare runs share identical motifs.
 # `.caspex_pwm_cache` lives in the package namespace (defined in
 # R/utils-internal.R, parent = emptyenv()). Within one loaded package
-# session it persists across all run_caspex() calls, so multi-matrix TFs
+# session it persists across all run_glproxscape() calls, so multi-matrix TFs
 # (HOX family etc.) resolve to a stable matrix pick on every call.
 
 #' Fetch position weight matrix from JASPAR for a TF name
@@ -834,7 +846,7 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
 # =============================================================================
 # HOCOMOCO backend (alternative motif source to JASPAR)
 #
-# Used when run_caspex(..., motif_search_engine = "hocomoco"). Provides one
+# Used when run_glproxscape(..., motif_search_engine = "hocomoco"). Provides one
 # drop-in replacement for fetch_jaspar_pwm():
 #
 #   fetch_hocomoco_pwm(tf_name, version = "v12", species = "human")
@@ -1181,7 +1193,7 @@ list_hocomoco_tfs <- function(version = "v12", species = "human") {
 
 #' Report HOCOMOCO coverage for a set of TF symbols.
 #'
-#' Useful as a pre-flight check before \code{run_caspex(motif_search_engine
+#' Useful as a pre-flight check before \code{run_glproxscape(motif_search_engine
 #' = "hocomoco")}: reports how many of the supplied TFs are present in the
 #' HOCOMOCO bundle and lists the missing ones.
 #'
@@ -1331,24 +1343,31 @@ scan_sequence <- function(promoter_info, pwm_obj, threshold_frac = 0.80) {
 #'         $hits), $pwm, and $n_hits.
 #' @noRd
 run_motif_scan <- function(tf_names, promoter_info, threshold_frac = 0.80,
-                            engine = c("jaspar", "hocomoco"),
+                            engine = c("jaspar", "hocomoco", "cisbp"),
                             hocomoco_version = "v12",
-                            hocomoco_species = "human") {
+                            hocomoco_species = "human",
+                            cisbp_species = "Homo_sapiens",
+                            cisbp_status = "direct",
+                            cisbp_prefer = "in_vitro",
+                            cisbp_pick = "medoid") {
   engine <- match.arg(engine)
-  engine_label <- if (engine == "jaspar") "JASPAR"
-                  else sprintf("HOCOMOCO %s (%s)", hocomoco_version,
-                               hocomoco_species)
+  engine_label <- switch(engine,
+    jaspar   = "JASPAR",
+    hocomoco = sprintf("HOCOMOCO %s (%s)", hocomoco_version, hocomoco_species),
+    cisbp    = .cisbp_label(cisbp_species, cisbp_status, cisbp_prefer))
   message("\nRunning ", engine_label, " motif scan for ", length(tf_names),
           " TFs...")
   # Per-TF PWM fetcher, parameterized by engine. fetch_jaspar_pwm goes over
   # REST per TF; fetch_hocomoco_pwm hits the in-memory cache after the first
   # bundle parse (lazy-loaded on first call below).
-  .fetch <- if (engine == "jaspar") {
-    function(tf) fetch_jaspar_pwm(tf)
-  } else {
-    function(tf) fetch_hocomoco_pwm(tf, version = hocomoco_version,
-                                    species = hocomoco_species)
-  }
+  .fetch <- switch(engine,
+    jaspar   = function(tf) fetch_jaspar_pwm(tf),
+    hocomoco = function(tf) fetch_hocomoco_pwm(tf, version = hocomoco_version,
+                                               species = hocomoco_species),
+    cisbp    = function(tf) fetch_cisbp_pwm(tf, species = cisbp_species,
+                                            status = cisbp_status,
+                                            prefer = cisbp_prefer,
+                                            pick = cisbp_pick))
   out <- list()
   for (tf in tf_names) {
     message("  ", tf, " ...", appendLF = FALSE)
@@ -1374,13 +1393,13 @@ run_motif_scan <- function(tf_names, promoter_info, threshold_frac = 0.80,
 #
 # The per-TF centroid from SECTION 4 is a single weighted midpoint. That
 # collapses two distinct binding events (e.g., R1=3, R2=0, R3=2) into one
-# phantom peak at R2. This section builds a continuous CasPEX signal along
+# phantom peak at R2. This section builds a continuous GLproxScape signal along
 # the promoter and decomposes it onto JASPAR motif positions via NNLS so
 # multiple bindings \u2014 and bindings that fall *between* two adjacent
 # enriched regions \u2014 can be separated and localised.
 # =============================================================================
 
-#' Continuous CasPEX signal for a TF along x_grid.
+#' Continuous GLproxScape signal for a TF along x_grid.
 #'
 #' Each gRNA cut site contributes a Gaussian labeling kernel weighted by the
 #' region's logFC (positive only, by default). The combined curve is what a
@@ -1615,7 +1634,7 @@ find_local_maxima <- function(x, y, min_height = 0, min_dist = 150) {
 # and the per-region logFC stems. Removed: the function definition, the
 # `mle_position` parameter on every call site
 # (predict_binding_events_coverage_aware \u2192 predict_all_binding_events \u2192
-# plot_binding_deconvolution \u2192 run_caspex), the has_mle layout block in
+# plot_binding_events \u2192 run_glproxscape), the has_mle layout block in
 # Plot 10, the schema columns added by add_diag, and the result-list
 # bookkeeping. The Wild bootstrap "Position support" infrastructure
 # remains in place under `position_stability` for back-compatibility but
@@ -1626,10 +1645,10 @@ find_local_maxima <- function(x, y, min_height = 0, min_dist = 150) {
 #' Coverage-normalised counterpart to predict_binding_events(): operates
 #' on \eqn{\beta(x) = s(x)/C(x)} inside a zone-based detector that emits
 #' one bubble per qualifying motif inside a contiguous above-threshold
-#' region of \eqn{\beta}. See run_caspex() for the full parameter wiring.
+#' region of \eqn{\beta}. See run_glproxscape() for the full parameter wiring.
 #'
 #' @param tf_name Symbol of the single transcription factor to plot.
-#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param motif_hits Number of PWM hits for the TF within the analysis window.
 #' @param x_grid Numeric vector of TSS-relative basepair positions defining the spatial grid.
@@ -2256,7 +2275,7 @@ predict_binding_events_coverage_aware <- function(
 #'   floor on the denominator: amplification is capped at ~ 1/cov_floor ×
 #'   the max-coverage value. Default 0.05 (~20× amplification cap).
 #' @param tfs Character vector of transcription-factor symbols to include.
-#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param motif_results Per-TF motif-scan results (hit positions, scores, n_hits) from the motif scan.
 #' @param x_grid Numeric vector of TSS-relative basepair positions defining the spatial grid.
@@ -2299,7 +2318,7 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
                                         position_stability = c("none", "wild_bootstrap"),
                                         n_bootstrap        = 200L,
                                         # PWM-score weighting of bubble size.
-                                        # See run_caspex() / predict_binding_events*()
+                                        # See run_glproxscape() / predict_binding_events*()
                                         # docstrings for details.
                                         motif_score_weight = c("none", "linear", "log")) {
   position_stability <- match.arg(position_stability)
@@ -2374,14 +2393,14 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
 #' Per-TF deconvolution detail plot: signal + region logFCs + predicted events.
 #'
 #' Layout (top -> bottom):
-#'   y > 0  : CasPEX signal ribbon (histogram-style), per-region logFC lollipops
+#'   y > 0  : GLproxScape signal ribbon (histogram-style), per-region logFC lollipops
 #'   y = 0  : baseline
 #'   y < 0  : "called peak track" — motif ticks (upper sub-lane), event circles
 #'            sized by NNLS weight (lower sub-lane). Events sit *under* the
 #'            histogram directly below their predicted position, with a thin
 #'            dotted connector up to the signal peak they explain.
 #' @param tf_name Symbol of the single transcription factor to plot.
-#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param motif_hits Number of PWM hits for the TF within the analysis window.
 #' @param kernel_sigma Gaussian labelling-kernel width in bp (default 300), approximating the APEX2 biotinylation radius along linear DNA.
@@ -2404,7 +2423,7 @@ predict_all_binding_events <- function(tfs, long_data, pos_map, motif_results,
 #' @param motif_scores Per-motif PWM match scores used to optionally weight event amplitude.
 #' @return A \code{ggplot} object (the per-TF binding-deconvolution detail panel).
 #' @export
-plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
+plot_binding_events <- function(tf_name, long_data, pos_map, motif_hits,
                                         kernel_sigma    = 300,
                                         min_weight_frac = 0.15,
                                         upstream        = 2500,
@@ -2434,7 +2453,7 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
                                         # ...). NULL skips the sub-lane.
                                         chipatlas_peaks   = NULL,
                                         # PWM-score weighting of bubble size
-                                        # (mirror of run_caspex / predict_*'s
+                                        # (mirror of run_glproxscape / predict_*'s
                                         # motif_score_weight + motif_scores).
                                         # Without these, the deck plot would
                                         # silently rerun the deconvolution in
@@ -2649,12 +2668,12 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
   # confusing \u2014 e.g., a z-weighted Myers curve peaking at ~100 looked like
   # logFC=100 even though the per-region lfc stems on the same plot show 1-3.
   y_label <- switch(weight_mode,
-    z          = "CasPEX signal (z-weighted, signed z from p-value)",
-    mod_t      = "CasPEX signal (mod-t weighted)",
-    lfc_pos    = "CasPEX signal (positive logFC-weighted)",
-    lfc_signed = "CasPEX signal (signed logFC-weighted)",
-    lfc_x_negp = "CasPEX signal (logFC \u00d7 -log10 p-weighted)",
-    paste0("CasPEX signal (", weight_mode, "-weighted)")
+    z          = "GLproxScape signal (z-weighted, signed z from p-value)",
+    mod_t      = "GLproxScape signal (mod-t weighted)",
+    lfc_pos    = "GLproxScape signal (positive logFC-weighted)",
+    lfc_signed = "GLproxScape signal (signed logFC-weighted)",
+    lfc_x_negp = "GLproxScape signal (logFC \u00d7 -log10 p-weighted)",
+    paste0("GLproxScape signal (", weight_mode, "-weighted)")
   )
 
   p +
@@ -2671,12 +2690,12 @@ plot_binding_deconvolution <- function(tf_name, long_data, pos_map, motif_hits,
     ) +
     labs(x = "Position (bp, TSS-relative)",
          y = y_label,
-         title = paste0(tf_name, " \u2014 binding event deconvolution",
+         title = paste0(tf_name, " \u2014 binding events",
                         " (coverage-aware)"),
          subtitle = sprintf(
            "%d event(s) | kernel \u03c3 = %d bp | %d motif candidate(s)  \u00b7  called-peak track below baseline",
            nrow(events), kernel_sigma, length(motif_hits_in))) +
-    theme_caspex()
+    theme_glproxscape()
 }
 
 # =============================================================================
@@ -2715,7 +2734,7 @@ plot_grna_positions <- function(pos_map, gene_info, upstream, downstream) {
          subtitle = paste0("chr", gene_info$chr, "  |  ",
                            ifelse(gene_info$strand == 1, "+", "-"), " strand  |  TSS = ",
                            format(gene_info$tss, big.mark = ","))) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(axis.text.y  = element_blank(),
           axis.ticks.y = element_blank(),
           panel.grid.major.y = element_blank())
@@ -2726,7 +2745,7 @@ plot_grna_positions <- function(pos_map, gene_info, upstream, downstream) {
 #' Each TF shown as a Gaussian ridge centred on the predicted binding centroid,
 #' height proportional to composite score, width proportional to binding spread.
 #' Bars stacked in a genomic coordinate space.
-#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().
+#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param top_n Number of top-ranked entries to retain or display.
 #' @param upstream Basepairs upstream of the TSS included in the analysis window.
@@ -2812,15 +2831,15 @@ plot_spatial_track <- function(spatial_df, pos_map,
          subtitle = paste0("Gaussian ridge centred on weighted spatial centroid  |  ",
                            "Height = composite enrichment score  |  ",
                            "Width = binding spread")) +
-    theme_caspex(base_size = 10) +
+    theme_glproxscape(base_size = 10) +
     theme(panel.grid.major.x = element_line(color = "grey90"),
           panel.grid.major.y = element_blank(),
           axis.text.y = element_text(size = 8, face = "bold"))
 }
 
 #' Plot 3 — Per-TF enrichment heatmap across regions
-#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
-#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_glproxscape().
+#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param top_n Number of top-ranked entries to retain or display.
 #' @return A \code{ggplot} object.
@@ -2850,7 +2869,7 @@ plot_heatmap <- function(long_data, spatial_df, pos_map, top_n = 30) {
     labs(x = NULL, y = NULL,
          title = "Enrichment heatmap: top TFs \u00d7 regions",
          subtitle = "Bold values = p \u2264 0.05") +
-    theme_caspex(base_size = 10) +
+    theme_glproxscape(base_size = 10) +
     theme(panel.grid = element_blank(),
           axis.text.x = element_text(size = 8),
           axis.text.y = element_text(size = 9))
@@ -2885,7 +2904,7 @@ plot_gc_track <- function(promoter_info, window = 50, step = 10) {
     labs(x = "Position (bp, TSS-relative)", y = "GC content",
          title = sprintf("Promoter GC content  |  %d bp  |  Overall: %.1f%%  |  Window: %d bp",
                          n, overall_gc, window)) +
-    theme_caspex()
+    theme_glproxscape()
 }
 
 #' Plot 5 — Binding prediction track with JASPAR motif overlay
@@ -2894,7 +2913,7 @@ plot_gc_track <- function(promoter_info, window = 50, step = 10) {
 #'   - Shaded Gaussian ribbon = CasPEX spatial enrichment prediction
 #'   - Vertical ticks below = JASPAR motif hit positions
 #'   - Color convergence between ribbon peak and motif cluster = high-confidence site
-#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_caspex().
+#' @param spatial_df Per-TF spatial-prediction table (centroid, spread, composite, sig_any) from run_glproxscape().
 #' @param motif_results Per-TF motif-scan results (hit positions, scores, n_hits) from the motif scan.
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param promoter_info Promoter-window sequence and coordinate record returned by fetch_promoter_seq().
@@ -3028,7 +3047,7 @@ plot_motif_track <- function(spatial_df, motif_results, pos_map,
          subtitle = paste0("Upper ribbon = spatial enrichment (Gaussian)  |  ",
                            "Lower sub-lane ticks = JASPAR motif hits  |  ",
                            "Vertical line = predicted binding centroid")) +
-    theme_caspex(base_size = 11) +
+    theme_glproxscape(base_size = 11) +
     theme(axis.text.y  = element_blank(),
           axis.ticks.y = element_blank(),
           panel.grid.major.y = element_blank(),
@@ -3245,7 +3264,7 @@ plot_tf_track <- function(tfs, spatial_df, pos_map, promoter_info,
                        expand    = c(0, 0)) +
     labs(x = "Position (bp, relative to TSS)", y = NULL,
          title = title, subtitle = subtitle) +
-    theme_caspex(base_size = 11) +
+    theme_glproxscape(base_size = 11) +
     theme(axis.text.y  = element_blank(),
           axis.ticks.y = element_blank(),
           panel.grid.major.y = element_blank(),
@@ -3255,7 +3274,7 @@ plot_tf_track <- function(tfs, spatial_df, pos_map, promoter_info,
 
 #' Plot 6 — Single TF inspector: enrichment bars by region position
 #' @param tf_name Symbol of the single transcription factor to plot.
-#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_caspex().
+#' @param long_data Long-format per-region, per-protein table (protein, region, logFC, weight, isTF, isEpi, ...) built by run_glproxscape().
 #' @param pos_map Named vector mapping each region label to its TSS-relative gRNA position in bp.
 #' @param pval_thresh Per-region significance threshold a protein must clear to enter the spatial model (default 0.05).
 #' @return A \code{ggplot} object.
@@ -3288,7 +3307,7 @@ plot_tf_profile <- function(tf_name, long_data, pos_map, pval_thresh = 0.05) {
     labs(x     = "Position (bp, TSS-relative)",
          y     = "logFC",
          title = paste0(tf_name, " \u2014 enrichment by region")) +
-    theme_caspex() +
+    theme_glproxscape() +
     theme(legend.position = "bottom")
 }
 
@@ -3531,7 +3550,7 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param epi_universe Optional character vector of epigenetic-factor
 #'   HGNC symbols (e.g. read from \code{EpiGenes_main.csv}). Sets
 #'   \code{isEpi} on loaded rows; used downstream by
-#'   \code{\link{run_caspex_epigenetic}} but does not affect the TF deck.
+#'   \code{\link{run_glproxscape_epigenetic}} but does not affect the TF deck.
 #' @param tfs_only If TRUE (default) the spatial model is restricted to
 #'   rows with \code{isTF = TRUE}; FALSE includes every protein.
 #'
@@ -3683,9 +3702,36 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #'
 #' @param motif_search_engine Which motif database to use for the per-TF
 #'   PWM lookup. \code{"jaspar"} (default) uses the JASPAR REST API;
-#'   \code{"hocomoco"} uses the HOCOMOCO MEME bundle (downloaded on first
-#'   use, cached on disk). Threshold semantics (\code{motif_thresh}) are
-#'   kept identical across engines.
+#'   \code{"hocomoco"} uses the HOCOMOCO MEME bundle and \code{"cisbp"} the
+#'   CIS-BP 3.10 species archive (both downloaded on first use and cached on
+#'   disk). Threshold semantics (\code{motif_thresh}) are kept identical
+#'   across engines.
+#' @param chipatlas_tagged Include tagged ChIP-Atlas pulldowns (FLAG, HA,
+#'   V5, GFP, biotin-tagged TFs, including those ChIP-Atlas files under
+#'   "Epitope tags", "GFP" or "Biotin"). Default \code{TRUE}; \code{FALSE}
+#'   uses TF-antibody experiments only.
+#' @param cisbp_status CIS-BP motifs used when
+#'   \code{motif_search_engine = "cisbp"}: \code{"direct"} (experimentally
+#'   determined, default) or \code{"inferred"} (fall back to motifs inferred
+#'   from DNA-binding-domain similarity; useful for species with few measured
+#'   motifs).
+#' @param cisbp_prefer CIS-BP motif choice per TF: \code{"in_vitro"}
+#'   (default; high-throughput in vitro motifs first, motifs imported from
+#'   JASPAR / HOCOMOCO last) or \code{"none"}. See
+#'   \code{\link{fetch_cisbp_pwm}}.
+#' @param cisbp_pick Within the chosen tier: \code{"medoid"} (default) or
+#'   \code{"ic"} (highest information content).
+#' @param cisbp_species CIS-BP species name; \code{NULL} (default) derives it
+#'   from \code{species} (e.g. \code{"mus_musculus"} -> \code{"Mus_musculus"}).
+#' @param cell_type Name of the experimental cell line or cell type (e.g.
+#'   \code{"HEK293"}). Passed to every cell-type-aware step: ChIP-Atlas
+#'   experiments from this cell type are scanned first and reported
+#'   separately (\code{chipatlas_support_by_cell_type.csv}), the histone-mark
+#'   deck of \code{\link{run_glproxscape_epigenetic}} uses it as its cell-type
+#'   filter, and for human runs the TFs are annotated with the RNA
+#'   expression of this cell line from the Human Protein Atlas
+#'   (\code{\link{annotate_tf_expression}}). \code{NULL} (default) skips
+#'   all cell-type-specific steps.
 #' @param hocomoco_version HOCOMOCO release when
 #'   \code{motif_search_engine = "hocomoco"}: \code{"v12"} (default,
 #'   CORE bundle) or \code{"v11"} (full mono bundle). Ignored otherwise.
@@ -3701,20 +3747,20 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' @param save_plots Write the PDF deck to \code{out_dir} (default TRUE).
 #'   Set FALSE for a fast headless run that only computes the result list.
 #' @param plot_width,plot_height PDF dimensions in inches. Defaults 10 x 8.
-#' @param extras If TRUE (default), run \code{\link{run_caspex_extras}}
+#' @param extras If TRUE (default), run \code{\link{run_glproxscape_extras}}
 #'   after the main pipeline completes, writing the diagnostic plot pack
 #'   to \code{<out_dir>/extras/}. The returned object exposes the result
 #'   as \code{res$extras_result}. Set FALSE to skip.
 #' @param epigenetic If TRUE (default), run
-#'   \code{\link{run_caspex_epigenetic}} after the main pipeline,
+#'   \code{\link{run_glproxscape_epigenetic}} after the main pipeline,
 #'   writing the zone-based chromatin-factor deck to
 #'   \code{<out_dir>/epigenetic/}. The returned object exposes the
 #'   result as \code{res$epigenetic_result}. Set FALSE to skip.
 #' @param extras_args Named list of additional arguments forwarded to
-#'   \code{\link{run_caspex_extras}} when \code{extras = TRUE}. Default
+#'   \code{\link{run_glproxscape_extras}} when \code{extras = TRUE}. Default
 #'   \code{list()}.
 #' @param epigenetic_args Named list of additional arguments forwarded
-#'   to \code{\link{run_caspex_epigenetic}} when \code{epigenetic = TRUE}
+#'   to \code{\link{run_glproxscape_epigenetic}} when \code{epigenetic = TRUE}
 #'   (e.g. \code{histone_cell_type}, \code{subtract_tf_overlap},
 #'   \code{complex_min_detected}). Default \code{list()}.
 #'
@@ -3727,11 +3773,11 @@ select_motif_tfs <- function(long_data, spatial_df, pos_map,
 #' \dontrun{
 #' grnas      <- c(R1 = "GCTGTGGAGTTGCATGAAAA", R2 = "ACGTACGTACGTACGTACGT")
 #' data_files <- c(R1 = "Region1.txt", R2 = "Region2.txt")
-#' res <- run_caspex(gene = "TERT", grnas = grnas,
+#' res <- run_glproxscape(gene = "TERT", grnas = grnas,
 #'                   data_files = data_files, out_dir = tempfile("caspex_"))
 #' }
 #' @export
-run_caspex <- function(
+run_glproxscape <- function(
     gene,
     grnas,
     data_files,
@@ -3743,7 +3789,7 @@ run_caspex <- function(
     # files if present, else FALSE for everything.
     tf_universe   = NULL,
     epi_universe  = NULL,
-    out_dir       = "caspex_output",
+    out_dir       = "glproxscape_output",
     species       = "homo_sapiens",
     # Transcript anchor for the TSS reference frame. As of the canonical-
     # default change, runs are deterministic across sessions: the Ensembl
@@ -3897,9 +3943,10 @@ run_caspex <- function(
     special_interest_gene   = NULL,
     special_interest_cap    = NULL,
     chipatlas_quiet         = TRUE,
+    chipatlas_tagged        = TRUE,
     detail_top_n     = 100,
     # `deconv_min_motif_hits` filters which TFs land on Plot 10
-    # (binding_deconvolution.pdf). Default 0 = keep legacy behaviour of
+    # (binding_events.pdf). Default 0 = keep legacy behaviour of
     # rendering one page per motif-scanned TF (the common + region-specific
     # union from select_motif_tfs). Setting > 0 keeps only TFs whose JASPAR
     # PWM scan in the promoter window returned at least that many hits, which
@@ -3956,7 +4003,18 @@ run_caspex <- function(
     # engines (same fractional log-odds cutoff against the matrix max);
     # the resulting biological stringency differs because HOCOMOCO PWMs
     # are typically higher-IC than the matching JASPAR matrices.
-    motif_search_engine   = c("jaspar", "hocomoco"),
+    #   "cisbp"              -- CIS-BP 3.10 species archive (cached on disk);
+    #                          one motif per TF chosen by cisbp_prefer /
+    #                          cisbp_pick (see fetch_cisbp_pwm()).
+    motif_search_engine   = c("jaspar", "hocomoco", "cisbp"),
+    cisbp_status          = c("direct", "inferred"),
+    cisbp_prefer          = c("in_vitro", "none"),
+    cisbp_pick            = c("medoid", "ic"),
+    cisbp_species         = NULL,
+    # Experimental cell line / cell type; passed to ChIP-Atlas (matched
+    # experiments first + support table), the histone-mark deck and the
+    # Human Protein Atlas expression annotation (human only).
+    cell_type             = NULL,
     # HOCOMOCO source selectors. Ignored when motif_search_engine == "jaspar".
     hocomoco_version      = "v12",
     # `hocomoco_species`: NULL (default) = auto-derive from `species`
@@ -3970,12 +4028,12 @@ run_caspex <- function(
     plot_width    = 10,
     plot_height   = 8,
     # \u2500\u2500 Optional downstream phases \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-    # `extras` runs run_caspex_extras() after the main run completes,
+    # `extras` runs run_glproxscape_extras() after the main run completes,
     # writing the diagnostic plot pack to <out_dir>/extras/.
-    # `epigenetic` runs run_caspex_epigenetic() after the main run
+    # `epigenetic` runs run_glproxscape_epigenetic() after the main run
     # completes, writing the zone-based chromatin-factor deck to
     # <out_dir>/epigenetic/.  Both default to TRUE so a single
-    # run_caspex() call produces the full deliverable set; set FALSE
+    # run_glproxscape() call produces the full deliverable set; set FALSE
     # to skip either phase.  Pass through extra params via
     # `extras_args = list(...)` / `epigenetic_args = list(...)`.
     extras          = TRUE,
@@ -4008,13 +4066,18 @@ run_caspex <- function(
   # Defensive fallback for the JASPAR branch (where hocomoco_species is
   # ignored anyway but downstream code reads result$hocomoco_species).
   if (is.null(hocomoco_species)) hocomoco_species <- "human"
-  motif_source <- if (motif_search_engine == "jaspar") "JASPAR"
-                  else sprintf("HOCOMOCO %s (%s)", hocomoco_version,
-                               hocomoco_species)
+  cisbp_status <- match.arg(cisbp_status)
+  cisbp_prefer <- match.arg(cisbp_prefer)
+  cisbp_pick   <- match.arg(cisbp_pick)
+  if (is.null(cisbp_species)) cisbp_species <- .cisbp_species(species)
+  motif_source <- switch(motif_search_engine,
+    jaspar   = "JASPAR",
+    hocomoco = sprintf("HOCOMOCO %s (%s)", hocomoco_version, hocomoco_species),
+    cisbp    = .cisbp_label(cisbp_species, cisbp_status, cisbp_prefer))
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
   # \u2500\u2500 Resolve TF / Epi universes from bundled databases when not user-supplied
-  # Keeps the simple `run_caspex(gene, grnas, data_files)` call self-contained:
+  # Keeps the simple `run_glproxscape(gene, grnas, data_files)` call self-contained:
   # users who want to pin a custom universe still pass `tf_universe = ...` /
   # `epi_universe = ...` and override the defaults.
   if (is.null(tf_universe)) {
@@ -4114,7 +4177,11 @@ run_caspex <- function(
   motif_res <- run_motif_scan(motif_tfs, promoter_info, motif_thresh,
                               engine           = motif_search_engine,
                               hocomoco_version = hocomoco_version,
-                              hocomoco_species = hocomoco_species)
+                              hocomoco_species = hocomoco_species,
+                              cisbp_species    = cisbp_species,
+                              cisbp_status     = cisbp_status,
+                              cisbp_prefer     = cisbp_prefer,
+                              cisbp_pick       = cisbp_pick)
 
   # \u2500\u2500 5b. Optional augment-pool motif scan \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # When motif_scan_pool == "spatial_all", scan JASPAR for every TF in the
@@ -4134,7 +4201,11 @@ run_caspex <- function(
       motif_res_extra <- run_motif_scan(extra_tfs, promoter_info, motif_thresh,
                                         engine           = motif_search_engine,
                                         hocomoco_version = hocomoco_version,
-                                        hocomoco_species = hocomoco_species)
+                                        hocomoco_species = hocomoco_species,
+                                        cisbp_species    = cisbp_species,
+                                        cisbp_status     = cisbp_status,
+                                        cisbp_prefer     = cisbp_prefer,
+                                        cisbp_pick       = cisbp_pick)
     }
   }
 
@@ -4164,7 +4235,7 @@ run_caspex <- function(
   }
   if (isTRUE(chipatlas)) {
     if (!isTRUE(.caspex_chipatlas_loaded)) {
-      warning("chipatlas=TRUE but caspex_chipatlas.R could not be sourced; ",
+      warning("chipatlas=TRUE but glproxscape_chipatlas.R could not be sourced; ",
               "skipping ChIP-Atlas overlay.")
     } else {
       chipatlas_res <- run_chipatlas_scan(
@@ -4178,7 +4249,9 @@ run_caspex <- function(
         special_interest_gene = special_interest_gene,
         special_interest_cap  = special_interest_cap,
         quiet            = chipatlas_quiet,
-        genome           = chipatlas_genome
+        genome           = chipatlas_genome,
+        cell_type        = cell_type,
+        tagged           = chipatlas_tagged
       )
     }
   }
@@ -4274,7 +4347,7 @@ run_caspex <- function(
     # artefacts that didn't pull their weight in the final figure set. Only
     # the load-bearing outputs are written: gRNA layout, per-region heatmap,
     # GC content, the binding-deconvolution deck, and the epigenetic deck
-    # (in run_caspex_epigenetic).
+    # (in run_glproxscape_epigenetic).
     ggsave(file.path(out_dir, "grna_positions.pdf"),
            p_grna, width = plot_width, height = 4)
     ggsave(file.path(out_dir, "heatmap.pdf"),
@@ -4465,7 +4538,7 @@ run_caspex <- function(
         message("  Deconvolution plots: 0 TF(s) survived the filters ",
                 "(deconv_min_motif_hits = ", deconv_min_motif_hits,
                 ", deconv_min_max_lfc = ", deconv_min_max_lfc,
-                ") \u2014 skipping binding_deconvolution.pdf")
+                ") \u2014 skipping binding_events.pdf")
       } else {
         # Augment-pool ChIP-Atlas top-up \u2014 survivors that weren't in the
         # original 44 motif_tfs haven't had their ChIP-Atlas peaks fetched
@@ -4497,7 +4570,9 @@ run_caspex <- function(
                 special_interest_gene = special_interest_gene,
                 special_interest_cap  = special_interest_cap,
                 quiet            = chipatlas_quiet,
-                genome           = chipatlas_genome
+                genome           = chipatlas_genome,
+                cell_type        = cell_type,
+                tagged           = chipatlas_tagged
               ),
               error = function(e) {
                 message("    ChIP-Atlas augment-scan failed: ",
@@ -4529,7 +4604,7 @@ run_caspex <- function(
           # binding_events.csv.
           scores <- if (tf %in% names(motif_res_for_deck))
             motif_res_for_deck[[tf]]$score_frac else NULL
-          plot_binding_deconvolution(tf, long_data, pos_map, hits,
+          plot_binding_events(tf, long_data, pos_map, hits,
                                       kernel_sigma    = kernel_sigma,
                                       min_weight_frac = min_weight_frac,
                                       upstream        = upstream,
@@ -4551,10 +4626,10 @@ run_caspex <- function(
         })
 
         # Multi-page PDF: 1 TF per page (cleaner than a giant patchwork grid now
-        # that N can be 20+). Each page is one `plot_binding_deconvolution()` plot.
+        # that N can be 20+). Each page is one `plot_binding_events()` plot.
         # `.safe_pdf` handles the recurring "write failed" crash when the file
         # is locked by an open PDF viewer.
-        .safe_pdf(file.path(out_dir, "binding_deconvolution.pdf"),
+        .safe_pdf(file.path(out_dir, "binding_events.pdf"),
                   width  = plot_width,
                   height = max(5, plot_height * 0.6),
                   plots  = detail_plots)
@@ -4671,7 +4746,13 @@ run_caspex <- function(
     motif_search_engine = motif_search_engine,
     hocomoco_version    = hocomoco_version,
     hocomoco_species    = hocomoco_species,
-    # The binding-deconvolution deck (binding_deconvolution.pdf) TF roster \u2014 every
+    cisbp_species       = cisbp_species,
+    cisbp_status        = cisbp_status,
+    cisbp_prefer        = cisbp_prefer,
+    cisbp_pick          = cisbp_pick,
+    cell_type           = cell_type,
+    species             = species,
+    # The binding-deconvolution deck (binding_events.pdf) TF roster \u2014 every
     # TF that landed on a per-TF detail page after applying
     # `deconv_min_motif_hits` and `deconv_min_max_lfc`. Exposed on the
     # result so downstream consumers (notably the A5 TF co-occurrence
@@ -4682,7 +4763,7 @@ run_caspex <- function(
     binding_events = binding_events,
     weight_mode    = weight_mode,
     weight_source  = weight_src,
-    # Mode bookkeeping \u2014 lets caspex_extras.R auto-detect which analytical
+    # Mode bookkeeping \u2014 lets glproxscape_extras.R auto-detect which analytical
     # path produced this result and rerun its jackknife / \u03c3 sweep / one-pagers
     # under the matching mode. Without these fields the extras would silently
     # run in default-mode NNLS even when `result` came from a coverage-aware
@@ -4714,6 +4795,7 @@ run_caspex <- function(
     # match the assembly the TF scan used.
     chipatlas_genome      = if (isTRUE(chipatlas)) chipatlas_genome else NULL,
     chipatlas_threshold   = if (isTRUE(chipatlas)) chipatlas_threshold else NULL,
+    chipatlas_tagged      = chipatlas_tagged,
     # Output directory the run wrote to \u2014 attached so downstream callers
     # can derive sibling paths like file.path(res$out_dir, "extras")
     # without re-threading the original argument through their scripts.
@@ -4723,15 +4805,22 @@ run_caspex <- function(
                  gc   = p_gc)
   )
 
+  # Cell-type layer (cell_type given): ChIP-Atlas support by cell type and,
+  # for human runs, Human Protein Atlas expression of the detected TFs.
+  if (!is.null(cell_type)) {
+    message("\n=== Cell-type layer (cell_type = ", cell_type, ") ===")
+    result <- .run_cell_type_layer(result, out_dir, save_plots = save_plots)
+  }
+
   # \u2500\u2500 Optional downstream phases \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   if (isTRUE(extras)) {
     message("\n=== Running diagnostic extras (extras = TRUE) ===")
     result$extras_result <- tryCatch(
-      do.call(run_caspex_extras,
+      do.call(run_glproxscape_extras,
               c(list(result, out_dir = file.path(out_dir, "extras")),
                 extras_args)),
       error = function(e) {
-        warning("run_caspex_extras() failed: ", conditionMessage(e),
+        warning("run_glproxscape_extras() failed: ", conditionMessage(e),
                 " (continuing without extras)")
         NULL
       })
@@ -4739,11 +4828,11 @@ run_caspex <- function(
   if (isTRUE(epigenetic)) {
     message("\n=== Running epigenetic zone-based deck (epigenetic = TRUE) ===")
     result$epigenetic_result <- tryCatch(
-      do.call(run_caspex_epigenetic,
+      do.call(run_glproxscape_epigenetic,
               c(list(result, out_dir = file.path(out_dir, "epigenetic")),
                 epigenetic_args)),
       error = function(e) {
-        warning("run_caspex_epigenetic() failed: ", conditionMessage(e),
+        warning("run_glproxscape_epigenetic() failed: ", conditionMessage(e),
                 " (continuing without epigenetic deck)")
         NULL
       })
@@ -4758,7 +4847,7 @@ run_caspex <- function(
 
 #' Inspect a single TF from a completed run
 #'
-#' @param result   Output of run_caspex()
+#' @param result   Output of run_glproxscape()
 #' @param tf_name  TF symbol to inspect
 #' @return Invisibly, the per-TF profile \code{ggplot}; also prints a short summary to the console.
 #' @examples
@@ -4790,7 +4879,7 @@ inspect_tf <- function(result, tf_name) {
 }
 
 #' Re-run motif scan with a different TF set or threshold
-#' @param result The list returned by run_caspex() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
+#' @param result The list returned by run_glproxscape() (long_data, pos_map, spatial_df, binding_events, motif_results, ...).
 #' @param tf_names Character vector of transcription-factor symbols.
 #' @param threshold_frac Fraction-of-maximum threshold used for matching or selection.
 #' @return A named list of per-TF motif-scan results (hit positions, scores, and \code{n_hits}).
@@ -4807,7 +4896,11 @@ rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
   run_motif_scan(tf_names, result$promoter_info, threshold_frac,
                  engine           = result$motif_search_engine %||% "jaspar",
                  hocomoco_version = result$hocomoco_version    %||% "v12",
-                 hocomoco_species = result$hocomoco_species    %||% "human")
+                 hocomoco_species = result$hocomoco_species    %||% "human",
+                 cisbp_species    = result$cisbp_species       %||% "Homo_sapiens",
+                 cisbp_status     = result$cisbp_status        %||% "direct",
+                 cisbp_prefer     = result$cisbp_prefer        %||% "in_vitro",
+                 cisbp_pick       = result$cisbp_pick          %||% "medoid")
 }
 
 #' Audit which Ensembl transcript best matches your sgRNA layout
@@ -4818,10 +4911,10 @@ rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
 #' promoter window. Reports per-transcript: number of sgRNAs matched,
 #' their TSS-relative positions, canonical flag, biotype, and transcript
 #' span; finishes with a recommended \code{transcript = "ENST..."}
-#' anchor for \code{\link{run_caspex}}.
+#' anchor for \code{\link{run_glproxscape}}.
 #'
 #' Use BEFORE picking the \code{transcript} argument for
-#' \code{\link{run_caspex}}, since alt-promoters of the same gene can
+#' \code{\link{run_glproxscape}}, since alt-promoters of the same gene can
 #' sit hundreds of kb apart from the canonical transcript TSS — a run
 #' anchored on the canonical TSS would fail to find sgRNAs tiling a
 #' distal alt-promoter.
@@ -4836,7 +4929,7 @@ rescan_motifs <- function(result, tf_names, threshold_frac = 0.80) {
 #'   \code{"homo_sapiens"}.
 #' @param upstream,downstream bp window around each candidate TSS in
 #'   which to look for sgRNA matches. Deliberately wider than what
-#'   \code{run_caspex()} uses, so transcripts with TSSs slightly
+#'   \code{run_glproxscape()} uses, so transcripts with TSSs slightly
 #'   offset from the guide tile still register matches.
 #'   Defaults 5000 / 1500.
 #' @param biotype_filter Character vector of Ensembl biotypes to keep.
@@ -4869,7 +4962,7 @@ check_transcripts <- function(gene,
                               downstream     = 1500,
                               biotype_filter = "protein_coding",
                               verbose        = TRUE) {
-  inputs <- load_caspex_inputs(manifest_path, manifest = manifest)
+  inputs <- load_glproxscape_inputs(manifest_path, manifest = manifest)
   grnas  <- inputs$grnas
   if (verbose) {
     cat("=== sgRNA manifest ===\n")
@@ -4983,7 +5076,7 @@ check_transcripts <- function(gene,
     cat("\n=== Recommendation ===\n")
     cat(sprintf("Best transcript: %s  (%d / %d sgRNAs matched)\n",
                 results[[best]]$tx, results[[best]]$n_matched, length(grnas)))
-    cat(sprintf("Use in run_caspex():  transcript = \"%s\"\n",
+    cat(sprintf("Use in run_glproxscape():  transcript = \"%s\"\n",
                 results[[best]]$tx))
   }
   rows <- lapply(results, function(r) {
