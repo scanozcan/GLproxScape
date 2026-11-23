@@ -4219,6 +4219,9 @@ run_glproxscape <- function(
   # wins; otherwise derive from `species` (e.g. mus_musculus -> mm10).
   # Falls back to hg38 with a warning if the species isn't in our mapping,
   # so legacy callers (which never passed species) keep working.
+  if (isTRUE(chipatlas) && is.null(cell_type))
+    message("  No cell_type given: ChIP-Atlas support is not split by cell type, ",
+            "and expression annotation and the cell-type histone filter are skipped.")
   if (isTRUE(chipatlas)) {
     if (is.null(chipatlas_genome)) {
       chipatlas_genome <- .species_to_chipatlas_genome(species)

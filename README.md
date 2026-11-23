@@ -66,13 +66,17 @@ MacKenzie *et al.* (2026) FOXP2 dataset (3 sgRNAs) as an end-to-end
 example.
 
 <p align="center">
-  <img alt="GLproxScape workflow overview" src="man/figures/glproxscape-overview.svg" width="900">
+  <img alt="GLproxScape workflow overview" src="man/figures/glproxscape-figure1.png" width="900">
 </p>
 
 <p align="center">
-  <em>From CASPEX proximity labelling and per-region proteomics to a
-  spatially resolved chromatin-occupancy landscape — inputs, processing, and
-  outputs at a glance.</em>
+  <em>Figure 1 of the GLproxScape paper. (A) Experimental workflow: CASPEX
+  (dCas9-APEX2) is targeted to a locus by tiled sgRNAs, biotinylated proteins
+  are identified by mass spectrometry, and GLproxScape converts the per-region
+  enrichments into binding events and chromatin-regulator zones. (B) Inputs,
+  processing and outputs. (C) The spatial model: each sgRNA labels a Gaussian
+  neighborhood, the weighted kernels sum to the signal s(x), and motif sites in
+  enriched zones of the coverage-normalized track become binding events.</em>
 </p>
 
 ## Install
