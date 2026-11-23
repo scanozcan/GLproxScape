@@ -353,6 +353,27 @@ After this, `my_gene_analysis/glproxscape_output/` contains the
 binding-event deck (`binding_events.pdf`), the per-region heatmap, the gRNA-positions
 plot, and the predictions CSVs.
 
+**Choosing the region weights.** `weight_mode` sets how each region's
+per-protein weight is computed from its `logFC` and p-value; only the
+positive part drives spatial placement. The default `"z"` is the signed z
+from the p-value (`sign(logFC) × qnorm(p / 2, lower.tail = FALSE)`), which
+keeps the weight scale consistent across datasets with or without a `t`
+column. `"mod_t"` uses the limma moderated t when present (wider scale, same
+event ranking), `"lfc_pos"` and `"lfc_signed"` use the effect size only, and
+`"lfc_x_negp"` is the legacy `max(logFC, 0) × −log10(p)`.
+
+**Setting the cell type.** `cell_type` (e.g. `"HEK293"`) is the experimental
+cell line or cell type, passed to every cell-type-aware step: ChIP-Atlas
+experiments from this cell type are scanned first and reported separately
+(`chipatlas_support_by_cell_type.csv`, `res$chipatlas_support`); the
+histone-mark deck of `run_glproxscape_epigenetic()` uses it as its cell-type
+filter; and for `species = "homo_sapiens"` the detected TFs are annotated
+with the cell line's RNA expression from the Human Protein Atlas
+(`tf_expression_annotation.csv`, `tf_expression_families.pdf`,
+`res$expression`). For other species, use `annotate_tf_expression()` with
+`load_cell_line_expression(file = ...)`. Without `cell_type`, these steps
+are skipped and ChIP-Atlas support is not split by cell type.
+
 ### Reading the output
 
 The primary result is the binding-events table — written to CSV and
@@ -384,201 +405,103 @@ The zone-based predictions for epigenetic factors live separately on
 same events as bubbles along the promoter; the per-region heatmap and
 gRNA-positions plot are diagnostics for the underlying signal.
 
-## `run_glproxscape()` parameter reference
+## Full example with all options
 
-Full list of every argument, its default, and the allowed values. Use
-this as a quick lookup; the same content lives (with longer prose) in
-`?run_glproxscape`.
+All arguments of `run_glproxscape()` with their defaults, using the example
+from "Running the analysis" and grouped by step. Values marked "default" can
+be left out; the others turn on optional features (CIS-BP motifs,
+cell-type-aware ChIP-Atlas, histone marks and expression, the positional
+bootstrap). Full descriptions: `?run_glproxscape`.
 
-#### Required inputs
+```r
+res <- run_glproxscape(
+  # -- Inputs ---------------------------------------------------------------
+  gene                  = "YOUR_GENE",         # HGNC symbol
+  grnas                 = inputs$grnas,
+  data_files            = inputs$data_files,
+  tf_universe           = NULL,                # default: bundled TF list (Lambert et al. 2018)
+  epi_universe          = NULL,                # default: bundled EpiFactors list
+  species               = "homo_sapiens",      # default; e.g. "mus_musculus"
+  transcript            = "canonical",         # or "ENST..." for an alt-promoter
+  cell_type             = "HEK293",            # experimental cell line: ChIP-Atlas by cell type,
+                                               #   histone-mark filter, HPA expression (human)
+  out_dir               = "my_gene_analysis/glproxscape_output",
 
-- `gene` — HGNC symbol (e.g. `"FOXP2"`).
-- `grnas` — named character vector of protospacer sequences (17-23 bp).
-- `data_files` — named character vector of per-region proteomics table paths.
+  # -- Promoter window ------------------------------------------------------
+  upstream              = 3250,                # bp upstream of the TSS
+  downstream            = 100,                 # bp downstream of the TSS
 
-#### Annotation universes
+  # -- Protein filters and TF selection ---------------------------------------
+  pval_thresh           = 0.05,                # default
+  min_regions           = 2,                   # default
+  min_lfc               = 0,                   # default
+  tfs_only              = TRUE,                # default
+  top_n                 = 25,                  # default
+  motif_tfs             = NULL,                # default: chosen from n_common / n_shared / n_specific
+  n_common              = 20,                  # default
+  n_shared              = 20,                  # default
+  n_specific            = 20,                  # default
 
-- `tf_universe` = `NULL` — character vector of HGNC TF symbols. `NULL`
-  auto-loads the bundled `inst/extdata/databases/TFLibrary.txt`.
-- `epi_universe` = `NULL` — character vector of chromatin-factor HGNC
-  symbols. `NULL` auto-loads the bundled
-  `inst/extdata/databases/EpiGenes_main.csv` (`HGNC_symbol` column).
-- `tfs_only` = `TRUE` — restrict the spatial model to rows with
-  `isTF = TRUE`. `FALSE` includes every protein.
+  # -- Region weights ----------------------------------------------------------
+  weight_mode           = "z",                 # default; "mod_t", "lfc_pos", "lfc_signed", "lfc_x_negp"
+  signal_weight         = NULL,                # default: same as weight_mode
 
-#### Promoter window
+  # -- Motif scan ----------------------------------------------------------------
+  motif_search_engine   = "cisbp",             # default "jaspar"; or "hocomoco"
+  motif_thresh          = 0.75,                # default 0.80 (fraction of max PWM score)
+  motif_score_weight    = "none",              # default; "linear", "log"
+  motif_scan_pool       = "selected",          # default; "spatial_all"
+  hocomoco_version      = "v12",               # default (used with "hocomoco")
+  hocomoco_species      = NULL,                # default: from species
+  cisbp_status          = "direct",            # default; "inferred" for species with few motifs
+  cisbp_prefer          = "in_vitro",          # default; "none"
+  cisbp_pick            = "medoid",            # default; "ic"
+  cisbp_species         = NULL,                # default: from species
 
-- `species` = `"homo_sapiens"` — Ensembl species token.
-- `transcript` = `"canonical"` — `"canonical"` | `"ENST..."` | `NA`
-  (legacy gene-level union; not recommended).
-- `upstream` = `2500` — bp upstream of TSS.
-- `downstream` = `500` — bp downstream of TSS.
+  # -- Labeling kernel and event calling -----------------------------------------
+  kernel_sigma          = 300,                 # default (bp)
+  cov_floor             = 0.05,                # default
+  edge_guard_frac       = 0.25,                # default
+  min_weight_frac       = 0.15,                # default
+  zone_peak_frac        = 0.5,                 # default
+  min_peak_dist         = 150,                 # default (motif-free peaks)
+  merge_dist            = 100,                 # default
+  merge_position        = "argmax",            # default; "centroid"
+  max_events_per_tf     = 30,                  # default
+  max_grna_distance     = NULL,                # default: kernel_sigma
+  edge_grna_weight_cap  = NULL,                # default: no cap
 
-#### Spatial model + TF selection
+  # -- Positional stability (optional) ----------------------------------------------
+  position_stability    = "wild_bootstrap",    # default "none"
+  n_bootstrap           = 200L,                # default
 
-- `pval_thresh` = `0.05` — per-region p-value gate.
-- `min_regions` = `2` — minimum regions for a TF to count.
-- `min_lfc` = `0` — optional logFC floor (set positive to ignore
-  mildly negative values).
-- `top_n` = `25` — number of TFs rendered on the spatial track plot.
-- `motif_tfs` = `NULL` — explicit TF list for the motif scan; NULL
-  uses the engine's `select_motif_tfs()` cut.
-- `n_common`, `n_shared`, `n_specific` = `20` each — per-bucket caps
-  on the motif-TF selection (top-N common across regions, top-N
-  shared-focal, top-N per-region-specific).
+  # -- ChIP-Atlas overlay ----------------------------------------------------------------
+  chipatlas             = TRUE,                # default FALSE
+  chipatlas_threshold   = "05",                # default; "10", "20"
+  chipatlas_max_experiments = 100,             # default (newest per TF; Inf = all)
+  chipatlas_tagged      = TRUE,                # default; FALSE = TF-antibody experiments only
+  chipatlas_genome      = NULL,                # default: from species
+  special_interest_gene = c("CTCF"),           # default NULL; TFs scanned without the cap
+  special_interest_cap  = NULL,                # default: no cap for those TFs
+  chipatlas_quiet       = TRUE,                # default
 
-#### Motif scan
+  # -- Detail deck --------------------------------------------------------------------------
+  detail_top_n          = 100,                 # default
+  deconv_min_motif_hits = 0,                   # default
+  deconv_min_max_lfc    = 0,                   # default
 
-- `motif_thresh` = `0.80` — PWM threshold as fraction of max
-  log-odds. Typical relaxation: `0.75`. Applied identically to JASPAR
-  and HOCOMOCO matrices.
-- `motif_scan_pool` = `"selected"` — `"selected"` (44-TF default cut)
-  | `"spatial_all"` (also scan every spatial-model TF outside that cut;
-  results live in `result$motif_results_extra`).
-- `motif_score_weight` = `"none"` — `"none"` (binary threshold filter)
-  | `"linear"` (amplitude × score_frac) | `"log"` (amplitude ×
-  2^(score_frac - 1)).
-- `motif_search_engine` = `"jaspar"` — motif database used for per-TF
-  PWM lookup: `"jaspar"` (REST per-TF) | `"hocomoco"` (MEME bundle
-  downloaded once and cached to `tools::R_user_dir("caspex", "cache")`)
-  | `"cisbp"` (CIS-BP 3.10 species archive, downloaded once and cached).
-- `cisbp_status` = `"direct"` — CIS-BP motifs: `"direct"` (experimental)
-  | `"inferred"` (fall back to motifs inferred from DNA-binding-domain
-  similarity, useful for species with few measured motifs).
-- `cisbp_prefer` = `"in_vitro"` — one motif per TF chosen by source:
-  high-throughput in vitro (HT-SELEX, GHT-SELEX, PBM, SMiLE-seq) first,
-  motifs imported from JASPAR / HOCOMOCO last | `"none"`.
-- `cisbp_pick` = `"medoid"` — within the chosen tier, the motif most
-  similar to the TF's other motifs | `"ic"` (highest information content).
-- `cisbp_species` = `NULL` — CIS-BP species; derived from `species`
-  (e.g. `"mus_musculus"` → `"Mus_musculus"`).
-- `hocomoco_version` = `"v12"` — HOCOMOCO release when
-  `motif_search_engine = "hocomoco"`: `"v12"` (CORE bundle, default)
-  | `"v11"` (full mono bundle). Ignored otherwise.
-- `hocomoco_species` = `"human"` — `"human"` | `"mouse"` when
-  `motif_search_engine = "hocomoco"`. Ignored otherwise.
+  # -- Output ---------------------------------------------------------------------------------
+  save_plots            = TRUE,                # default
+  plot_width            = 10,                  # default
+  plot_height           = 8,                   # default
 
-#### Labeling kernel + event-calling filters
-
-- `kernel_sigma` = `300` — Gaussian labelling-kernel width in bp.
-- `min_weight_frac` = `0.15` — events below this fraction of the
-  local peak amplitude are pruned.
-- `min_peak_dist` = `150` — bp separation in the no-motif fallback
-  peak detector.
-- `merge_dist` = `100` — motif hits within this many bp are merged
-  into one cluster.
-- `cov_floor` = `0.05` — relative floor on the coverage denominator.
-  Effective amplification cap = `1 / cov_floor` (~20×).
-- `edge_guard_frac` = `0.25` — fraction-of-max-coverage floor for the
-  in-support beta mask.
-- `zone_peak_frac` = `0.50` — per-zone beta floor for motif retention
-  (0 disables).
-- `max_events_per_tf` = `30` — top-N cap per TF after merging
-  (`Inf` disables).
-- `merge_position` = `"argmax"` — `"argmax"` (snap to strongest motif)
-  | `"centroid"` (amplitude-weighted mean).
-- `max_grna_distance` = `NULL` — hard geometric cap on event-to-gRNA
-  distance in bp; `NULL` resolves to `kernel_sigma` at runtime, `Inf`
-  disables.
-- `edge_grna_weight_cap` = `NULL` — drop events whose boundary-gRNA
-  weight share exceeds this fraction in (0, 1]; `NULL` disables.
-
-#### Region-weight mode
-
-- `weight_mode` = `"z"` — how each region's per-protein weight is
-  computed from its `logFC` / p-value. The positive part of the weight
-  drives spatial placement (enrichment only). Options:
-  - `"z"` *(default, recommended)* — signed z from the p-value:
-    `sign(logFC) × qnorm(p / 2, lower.tail = FALSE)`. Keeps the weight
-    scale consistent across datasets with or without a `t` column.
-  - `"mod_t"` — limma moderated t (the `t` column) when present and
-    non-`NA`, else falls back to signed z. Kept for forensic
-    comparison; the t scale is much wider than z and can inflate the
-    smoothed-signal magnitude without changing event rank-order.
-  - `"lfc_pos"` — effect size only, no significance: `max(logFC, 0)`.
-  - `"lfc_signed"` — raw `logFC`, sign preserved (allows negative).
-  - `"lfc_x_negp"` — legacy logFC × −log10(p):
-    `max(logFC, 0) × (−log10(p))` (p floored at `1e-300`). Enrichment
-    only; "negp" is the negative log10 p-value.
-- `signal_weight` = `NULL` — back-compat alias; if non-NULL overrides
-  `weight_mode` for the signal track only.
-
-#### Bootstrap diagnostic
-
-- `position_stability` = `"none"` — `"none"` | `"wild_bootstrap"`
-  (Rademacher wild bootstrap on the model residuals, adds four columns to
-  `binding_events`).
-- `n_bootstrap` = `200L` — bootstrap draws.
-
-#### ChIP-Atlas overlay
-
-- `chipatlas` = `FALSE` — `TRUE` to fetch and render ChIP-seq peaks.
-- `chipatlas_threshold` = `"05"` — `"05"` (Q<1e-5) | `"10"` | `"20"`.
-- `chipatlas_max_experiments` = `100` — SRX cap per TF.
-- `chipatlas_genome` = `NULL` — UCSC assembly code passed to ChIP-Atlas
-  (e.g. `"hg38"`, `"mm10"`, `"rn7"`). `NULL` auto-derives from `species`
-  via the bundled species → UCSC mapping (`homo_sapiens` → `hg38`,
-  `mus_musculus` → `mm10`, etc.). For non-human runs, an Ensembl /
-  ChIP-Atlas assembly-frame mismatch is detected automatically and the
-  gene coordinates are lifted to the target assembly via the Ensembl
-  archive (e.g. GRCm39 → GRCm38 for mouse mm10 via `e102.rest.ensembl.org`).
-- `special_interest_gene` = `NULL` — character vector of TFs that
-  bypass the SRX cap.
-- `special_interest_cap` = `NULL` — optional integer cap for
-  special-interest TFs; `NULL` = scan all SRX.
-- `chipatlas_quiet` = `TRUE` — suppress per-SRX download messages.
-- `chipatlas_tagged` = `TRUE` — include tagged pulldowns (FLAG / HA /
-  V5 / GFP / biotin-tagged TFs, including those ChIP-Atlas files under
-  "Epitope tags", "GFP" or "Biotin"); the `pulldown` column of each peak
-  table marks them. `FALSE` uses TF-antibody experiments only.
-
-#### Cell type
-
-- `cell_type` = `NULL` — the experimental cell line or cell type (e.g.
-  `"HEK293"`), used by every cell-type-aware step: ChIP-Atlas experiments
-  from this cell type are scanned first and reported separately
-  (`chipatlas_support_by_cell_type.csv`, `res$chipatlas_support`); the
-  histone-mark deck of `run_glproxscape_epigenetic()` uses it as its
-  cell-type filter; and for `species = "homo_sapiens"` the detected TFs
-  are annotated with the cell line's RNA expression from the Human
-  Protein Atlas (`tf_expression_annotation.csv`,
-  `tf_expression_families.pdf`, `res$expression`). For other species,
-  use `annotate_tf_expression()` with
-  `load_cell_line_expression(file = ...)`.
-
-#### Detail deck filters
-
-- `detail_top_n` = `100` — number of TFs on the per-TF binding-event
-  detail PDF.
-- `deconv_min_motif_hits` = `0` — minimum JASPAR hits in window for
-  a TF to appear on the detail deck (0 disables).
-- `deconv_min_max_lfc` = `0` — minimum max per-region logFC for a
-  TF to appear on the detail deck (0 disables). Composes AND-style
-  with `deconv_min_motif_hits`.
-
-#### Output writing
-
-- `out_dir` = `"glproxscape_output"` — output directory (created if absent).
-  Subfolders `extras/` and `epigenetic/` are created inside it when
-  the corresponding phase flags are TRUE (default).
-- `save_plots` = `TRUE` — write the PDF deck.
-- `plot_width` = `10`, `plot_height` = `8` — PDF dimensions in inches.
-
-#### Optional downstream phases
-
-- `extras` = `TRUE` — run `run_glproxscape_extras()` after the main
-  pipeline; writes the diagnostic plot pack to `<out_dir>/extras/`
-  and returns the result on `res$extras_result`.
-- `epigenetic` = `TRUE` — run `run_glproxscape_epigenetic()` after the
-  main pipeline; writes the zone-based chromatin-factor deck to
-  `<out_dir>/epigenetic/` and returns the result on
-  `res$epigenetic_result`.
-- `extras_args` = `list()` — named list of arguments forwarded to
-  `run_glproxscape_extras()`.
-- `epigenetic_args` = `list()` — named list of arguments forwarded
-  to `run_glproxscape_epigenetic()` (e.g. `subtract_tf_overlap`,
-  `complex_min_detected`; `histone_cell_type` overrides `cell_type`
-  for the histone-mark deck only).
+  # -- Downstream phases ------------------------------------------------------------------------
+  extras                = TRUE,                # default; diagnostic plot pack -> <out_dir>/extras/
+  epigenetic            = TRUE,                # default; chromatin-factor zones -> <out_dir>/epigenetic/
+  extras_args           = list(),              # default
+  epigenetic_args       = list()               # default; e.g. list(histone_cell_type = "HEK293T")
+)
+```
 
 ## Bundled example data
 
@@ -696,104 +619,6 @@ correctly. Supported species → assembly mappings include
 `rattus_norvegicus` → `rn7`, plus fly, worm, zebrafish, chicken,
 yeast, and a few others; override with `chipatlas_genome = "..."`
 when a specific older build is needed.
-
-## Full example with all options
-
-All arguments of `run_glproxscape()`, using the example from "Running the
-analysis" and grouped by step. Values marked "default" can be left out; the
-others turn on optional features (CIS-BP motifs, cell-type-aware ChIP-Atlas,
-histone marks and expression, the positional bootstrap). See the
-`run_glproxscape()` parameter reference above for each argument.
-
-```r
-res <- run_glproxscape(
-  # -- Inputs ---------------------------------------------------------------
-  gene                  = "YOUR_GENE",         # HGNC symbol
-  grnas                 = inputs$grnas,
-  data_files            = inputs$data_files,
-  tf_universe           = NULL,                # default: bundled TF list (Lambert et al. 2018)
-  epi_universe          = NULL,                # default: bundled EpiFactors list
-  species               = "homo_sapiens",      # default; e.g. "mus_musculus"
-  transcript            = "canonical",         # or "ENST..." for an alt-promoter
-  cell_type             = "HEK293",            # experimental cell line: ChIP-Atlas by cell type,
-                                               #   histone-mark filter, HPA expression (human)
-  out_dir               = "my_gene_analysis/glproxscape_output",
-
-  # -- Promoter window ------------------------------------------------------
-  upstream              = 3250,                # bp upstream of the TSS
-  downstream            = 100,                 # bp downstream of the TSS
-
-  # -- Protein filters and TF selection ---------------------------------------
-  pval_thresh           = 0.05,                # default
-  min_regions           = 2,                   # default
-  min_lfc               = 0,                   # default
-  tfs_only              = TRUE,                # default
-  top_n                 = 25,                  # default
-  motif_tfs             = NULL,                # default: chosen from n_common / n_shared / n_specific
-  n_common              = 20,                  # default
-  n_shared              = 20,                  # default
-  n_specific            = 20,                  # default
-
-  # -- Region weights ----------------------------------------------------------
-  weight_mode           = "z",                 # default; "mod_t", "lfc_pos", "lfc_signed", "lfc_x_negp"
-  signal_weight         = NULL,                # default: same as weight_mode
-
-  # -- Motif scan ----------------------------------------------------------------
-  motif_search_engine   = "cisbp",             # default "jaspar"; or "hocomoco"
-  motif_thresh          = 0.75,                # default 0.80 (fraction of max PWM score)
-  motif_score_weight    = "none",              # default; "linear", "log"
-  motif_scan_pool       = "selected",          # default; "spatial_all"
-  hocomoco_version      = "v12",               # default (used with "hocomoco")
-  hocomoco_species      = NULL,                # default: from species
-  cisbp_status          = "direct",            # default; "inferred" for species with few motifs
-  cisbp_prefer          = "in_vitro",          # default; "none"
-  cisbp_pick            = "medoid",            # default; "ic"
-  cisbp_species         = NULL,                # default: from species
-
-  # -- Labeling kernel and event calling -----------------------------------------
-  kernel_sigma          = 300,                 # default (bp)
-  cov_floor             = 0.05,                # default
-  edge_guard_frac       = 0.25,                # default
-  min_weight_frac       = 0.15,                # default
-  zone_peak_frac        = 0.5,                 # default
-  min_peak_dist         = 150,                 # default (motif-free peaks)
-  merge_dist            = 100,                 # default
-  merge_position        = "argmax",            # default; "centroid"
-  max_events_per_tf     = 30,                  # default
-  max_grna_distance     = NULL,                # default: kernel_sigma
-  edge_grna_weight_cap  = NULL,                # default: no cap
-
-  # -- Positional stability (optional) ----------------------------------------------
-  position_stability    = "wild_bootstrap",    # default "none"
-  n_bootstrap           = 200L,                # default
-
-  # -- ChIP-Atlas overlay ----------------------------------------------------------------
-  chipatlas             = TRUE,                # default FALSE
-  chipatlas_threshold   = "05",                # default; "10", "20"
-  chipatlas_max_experiments = 100,             # default (newest per TF; Inf = all)
-  chipatlas_tagged      = TRUE,                # default; FALSE = TF-antibody experiments only
-  chipatlas_genome      = NULL,                # default: from species
-  special_interest_gene = c("CTCF"),           # default NULL; TFs scanned without the cap
-  special_interest_cap  = NULL,                # default: no cap for those TFs
-  chipatlas_quiet       = TRUE,                # default
-
-  # -- Detail deck --------------------------------------------------------------------------
-  detail_top_n          = 100,                 # default
-  deconv_min_motif_hits = 0,                   # default
-  deconv_min_max_lfc    = 0,                   # default
-
-  # -- Output ---------------------------------------------------------------------------------
-  save_plots            = TRUE,                # default
-  plot_width            = 10,                  # default
-  plot_height           = 8,                   # default
-
-  # -- Downstream phases ------------------------------------------------------------------------
-  extras                = TRUE,                # default; diagnostic plot pack -> <out_dir>/extras/
-  epigenetic            = TRUE,                # default; chromatin-factor zones -> <out_dir>/epigenetic/
-  extras_args           = list(),              # default
-  epigenetic_args       = list()               # default; e.g. list(histone_cell_type = "HEK293T")
-)
-```
 
 ## Citation
 
