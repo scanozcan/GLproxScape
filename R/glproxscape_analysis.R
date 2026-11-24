@@ -2690,10 +2690,9 @@ plot_binding_events <- function(tf_name, long_data, pos_map, motif_hits,
     ) +
     labs(x = "Position (bp, TSS-relative)",
          y = y_label,
-         title = paste0(tf_name, " \u2014 binding events",
-                        " (coverage-aware)"),
+         title = paste0(tf_name, " \u2014 binding events"),
          subtitle = sprintf(
-           "%d event(s) | kernel \u03c3 = %d bp | %d motif candidate(s)  \u00b7  called-peak track below baseline",
+           "%d event(s) | kernel \u03c3 = %d bp | %d motif candidate(s)",
            nrow(events), kernel_sigma, length(motif_hits_in))) +
     theme_glproxscape()
 }

@@ -115,6 +115,12 @@ ChIP-Atlas, HOCOMOCO and CIS-BP files are reused.
   now looks beyond the first line. The download may take up to one hour on
   slow connections instead of timing out after 60 s.
 - Ensembl requests now wait up to 60 s and are retried up to three times.
+- Cell-type matching (ChIP-Atlas TF scan and histone-mark deck) ignores
+  case, spaces and punctuation ("MIA PaCa-2" = "MiaPaca-2" = "miapaca2") and
+  accepts subline suffixes after a separator ("HeLa" matches "HeLa-S3"), but
+  no longer matches names that only share a prefix ("PANC1" no longer
+  matches "PANC 10.05", "HeLa" no longer matches "HEL"). HEK293 sublines
+  (293, 293T, 293FT) count as one cell line.
 - The epigenetic deck now uses the same ChIP-Atlas genome as the TF scan
   (previously always hg38).
 

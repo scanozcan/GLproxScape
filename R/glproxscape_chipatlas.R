@@ -1087,11 +1087,14 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
 #' ChIP-Atlas's metadata uses inconsistent spellings for the same cell line —
 #' "HEK293T", "HEK 293T", "HEK-293T", "HEK293", "Hek 293/T", "293T" all refer
 #' to the same line, depending on which submitter typed the metadata. This
-#' helper normalises both sides (uppercase, strip non-alphanumerics) and
-#' tests substring equality in BOTH directions: a row matches if the target
-#' is a substring of the field OR the field is a substring of the target.
-#' That way "HEK293T" matches both "HEK293T" and "HEK293" (in case some
-#' submissions dropped the trailing "T").
+#' helper ignores case, spaces and punctuation, so "MIA PaCa-2",
+#' "Mia PaCa-2", "MiaPaca-2" and "miapaca2" are the same name. A row matches
+#' when the two names are equal, or when the shorter name is the longer one
+#' up to a space or punctuation mark (a subline suffix): "LNCaP" matches
+#' "LNCaP clone FGC" and "HeLa" matches "HeLa-S3", but "HEL" does not match
+#' "HeLa", "PANC1" does not match "PANC 10.05" and "Panc1" does not match
+#' "Panc02". HEK293 sublines (HEK293, 293, 293T, 293FT, ...) all match each
+#' other.
 #' @param cell_type_field Name of the column holding the cell-type label in the experiment table.
 #' @param target Target cell-type label to match against ChIP-Atlas metadata.
 #' @noRd
@@ -1101,19 +1104,28 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
   norm <- function(x) gsub("[^A-Z0-9]", "", toupper(as.character(x)))
   ct_norm <- norm(cell_type_field)
   tg_norm <- norm(target)
-  # Bidirectional substring: target \u2286 field OR field \u2286 target. Skips empty
-  # field strings (some ChIP-Atlas rows have no cell_type recorded).
+  # Same name, or one name is the other up to a separator; empty fields
+  # never match.
   ok_field <- nzchar(ct_norm)
   matched <- rep(FALSE, length(cell_type_field))
-  matched[ok_field] <- grepl(tg_norm, ct_norm[ok_field], fixed = TRUE) |
-                       vapply(ct_norm[ok_field],
-                              function(s) grepl(s, tg_norm, fixed = TRUE),
-                              logical(1))
+  matched[ok_field] <-
+    ct_norm[ok_field] == tg_norm |
+    vapply(cell_type_field[ok_field], function(f) tg_norm %in% .name_stems(f), logical(1)) |
+    ct_norm[ok_field] %in% .name_stems(target)
   # Sublines of the same cell line count as the same cell type: ChIP-Atlas
   # files HEK293 cells as "293", "293T" or "293FT", and all of these match
   # any HEK293 name (HEK293, HEK293T, 293T, ...).
   if (.is_hek293(tg_norm)) matched <- matched | .is_hek293(ct_norm)
   matched
+}
+
+# Normalized prefixes of a name that end at a space or punctuation mark:
+# "HeLa-S3" -> "HELA", "HELAS3"; "PANC 10.05" -> "PANC", "PANC10", "PANC1005".
+.name_stems <- function(x) {
+  tok <- strsplit(toupper(as.character(x)), "[^A-Z0-9]+")[[1]]
+  tok <- tok[nzchar(tok)]
+  if (!length(tok)) return(character(0))
+  Reduce(paste0, tok, accumulate = TRUE)
 }
 
 # HEK293 and its sublines (293T, 293FT, 293E, 293EBNA, Flp-In T-REx 293).
