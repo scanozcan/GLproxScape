@@ -1109,7 +1109,16 @@ run_chipatlas_scan <- function(tfs, gene_info, promoter_info,
                        vapply(ct_norm[ok_field],
                               function(s) grepl(s, tg_norm, fixed = TRUE),
                               logical(1))
+  # Sublines of the same cell line count as the same cell type: ChIP-Atlas
+  # files HEK293 cells as "293", "293T" or "293FT", and all of these match
+  # any HEK293 name (HEK293, HEK293T, 293T, ...).
+  if (.is_hek293(tg_norm)) matched <- matched | .is_hek293(ct_norm)
   matched
+}
+
+# HEK293 and its sublines (293T, 293FT, 293E, 293EBNA, Flp-In T-REx 293).
+.is_hek293 <- function(x_norm) {
+  grepl("^(HEK)?293(T|FT|E|EBNA1?)?$", x_norm) | grepl("TREX293$", x_norm)
 }
 
 #' Fetch peaks for a single antigen, restricted to a custom SRX subset.

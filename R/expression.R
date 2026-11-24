@@ -112,6 +112,9 @@ load_cell_line_expression <- function(cell_type = NULL, file = NULL,
   lines_cl <- unique(vapply(strsplit(first, "\t", fixed = TRUE), `[`, "", i_cl))
   norm <- function(x) gsub("[^a-z0-9]", "", tolower(x))
   name <- lines_cl[norm(lines_cl) == norm(cell_type)]
+  # HEK293 sublines (HEK293T, 293FT, ...) use the HEK293 profile.
+  if (!length(name) && .is_hek293(toupper(norm(cell_type))))
+    name <- lines_cl[norm(lines_cl) == "hek293"]
   if (!length(name)) {
     near <- lines_cl[grepl(substr(norm(cell_type), 1, 3), norm(lines_cl), fixed = TRUE)]
     stop("Cell line '", cell_type, "' is not in the Human Protein Atlas. ",

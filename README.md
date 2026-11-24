@@ -365,7 +365,8 @@ event ranking), `"lfc_pos"` and `"lfc_signed"` use the effect size only, and
 **Setting the cell type.** `cell_type` (e.g. `"HEK293"`) is the experimental
 cell line or cell type, passed to every cell-type-aware step: ChIP-Atlas
 experiments from this cell type are scanned first and reported separately
-(`chipatlas_support_by_cell_type.csv`, `res$chipatlas_support`); the
+(HEK293 sublines such as 293, 293T and 293FT count as one cell line;
+`chipatlas_support_by_cell_type.csv`, `res$chipatlas_support`); the
 histone-mark deck of `run_glproxscape_epigenetic()` uses it as its cell-type
 filter; and for `species = "homo_sapiens"` the detected TFs are annotated
 with the cell line's RNA expression from the Human Protein Atlas

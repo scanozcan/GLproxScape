@@ -83,7 +83,7 @@ every step that uses it:
 
 | Step | What `cell_type` does |
 |---|---|
-| ChIP-Atlas overlay | experiments from this cell type are scanned first (kept within the per-TF cap) and flagged (`cell_type_matched`); event support from matched vs other cell types is written to `chipatlas_support_by_cell_type.csv` (`chipatlas_support_by_cell_type()`) |
+| ChIP-Atlas overlay | experiments from this cell type (HEK293 sublines such as 293, 293T and 293FT count as one cell line) are scanned first (kept within the per-TF cap) and flagged (`cell_type_matched`); event support from matched vs other cell types is written to `chipatlas_support_by_cell_type.csv` (`chipatlas_support_by_cell_type()`) |
 | Histone-mark deck (`run_glproxscape_epigenetic()`) | used as the cell-type filter (replaces the former `"HEK293T"` default of `histone_cell_type`, which still overrides it when given) |
 | Expression annotation | Human Protein Atlas cell line (human runs only) |
 
