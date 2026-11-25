@@ -27,7 +27,7 @@ The cache directory (invisibly).
 \description{
 Requests the CIS-BP species archive (TF information + PWMs) from the
 CIS-BP bulk-download form and unzips it into the local cache
-(\code{tools::R_user_dir("caspex", "cache")}). Called automatically on
+(\code{tools::R_user_dir("glproxscape", "cache")}). Called automatically on
 first use of \code{motif_search_engine = "cisbp"}.
 }
 \examples{

@@ -16,7 +16,7 @@
 .hpa_celline_url <- "https://www.proteinatlas.org/download/tsv/rna_celline.tsv.zip"
 
 .expr_cache_dir <- function() {
-  d <- file.path(tools::R_user_dir("caspex", which = "cache"), "expression")
+  d <- file.path(.glp_cache_root(), "expression")
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
   d
 }

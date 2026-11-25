@@ -13,7 +13,7 @@
 #   2. For each requested TF, look up its SRX IDs in hg38 TFs class, take the
 #      top-N most recent (by SRX number DESC), and fetch per-SRX BED files
 #      from .../eachData/bed{threshold}/SRX*.{threshold}.bed. Each is small
-#      (<1 MB typically), cached to R_user_dir("caspex","cache")/chipatlas/.
+#      (<1 MB typically), cached to R_user_dir("glproxscape","cache")/chipatlas/.
 #   3. Filter every SRX BED to the promoter window and convert genomic
 #      coordinates to TSS-relative bp.
 #
@@ -30,7 +30,7 @@
 #' @return Path to the cache root (created on demand).
 #' @noRd
 .chipatlas_cache_dir <- function() {
-  base <- tools::R_user_dir("caspex", which = "cache")
+  base <- .glp_cache_root()
   dir  <- file.path(base, "chipatlas")
   dir.create(dir, showWarnings = FALSE, recursive = TRUE)
   dir
@@ -122,13 +122,13 @@
 # ---- UCSC chain-file fetch + cache (rtracklayer fallback path) -------------
 #
 # UCSC publishes pre-computed chain files for assembly pairs. We cache them
-# in R_user_dir("caspex","cache")/liftover/ so repeated lift-overs reuse
+# in R_user_dir("glproxscape","cache")/liftover/ so repeated lift-overs reuse
 # one disk copy. Only used when an Ensembl archive endpoint isn't known
 # for the assembly pair (the archive route is the primary lift-over path).
 
 #' @noRd
 .chain_cache_dir <- function() {
-  base <- tools::R_user_dir("caspex", which = "cache")
+  base <- .glp_cache_root()
   dir  <- file.path(base, "liftover")
   dir.create(dir, showWarnings = FALSE, recursive = TRUE)
   dir

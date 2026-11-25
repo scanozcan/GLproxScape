@@ -14,7 +14,7 @@ third motif source next to JASPAR and HOCOMOCO v12.
 
 - **Download and cache.** The CIS-BP species archive (TF information and
   PWMs) is downloaded once and cached under
-  `tools::R_user_dir("caspex", "cache")`. If the automatic download is
+  `tools::R_user_dir("glproxscape", "cache")`. If the automatic download is
   blocked, download the archive from
   <https://cisbp.ccbr.utoronto.ca/bulk.php> and import it with
   `download_cisbp_bundle(species, from_file = "archive.zip")`.
@@ -105,8 +105,10 @@ Also renamed: the per-TF binding-event deck is now written as
 "<TF> - binding events"; the y axis of the binding-event plots reads
 "GLproxScape signal (...)"; the default output folder is
 `glproxscape_output` (was `caspex_output`); the source files are `R/glproxscape_*.R`. The cache
-folder (`tools::R_user_dir("caspex", "cache")`) keeps its name, so downloaded
-ChIP-Atlas, HOCOMOCO and CIS-BP files are reused.
+folder is now `tools::R_user_dir("glproxscape", "cache")` (was `"caspex"`); an
+existing `caspex` cache is moved there on first use and a link is left at the old
+path, so downloaded ChIP-Atlas, HOCOMOCO, CIS-BP and Human Protein Atlas files are
+reused.
 
 ## Fixes
 

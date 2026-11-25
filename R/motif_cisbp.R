@@ -34,7 +34,7 @@
 #' Local cache directory for one CIS-BP species archive.
 #' @noRd
 .cisbp_cache_dir <- function(species = "Homo_sapiens") {
-  d <- file.path(tools::R_user_dir("caspex", which = "cache"),
+  d <- file.path(.glp_cache_root(),
                  sprintf("cisbp_%s", species))
   dir.create(d, recursive = TRUE, showWarnings = FALSE)
   d
@@ -49,7 +49,7 @@
 #'
 #' Requests the CIS-BP species archive (TF information + PWMs) from the
 #' CIS-BP bulk-download form and unzips it into the local cache
-#' (\code{tools::R_user_dir("caspex", "cache")}). Called automatically on
+#' (\code{tools::R_user_dir("glproxscape", "cache")}). Called automatically on
 #' first use of \code{motif_search_engine = "cisbp"}.
 #'
 #' @param species CIS-BP species name (e.g. \code{"Homo_sapiens"},

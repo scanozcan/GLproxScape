@@ -20,9 +20,8 @@
 # theme_glproxscape) and on glproxscape_chipatlas.R's run_chipatlas_scan(). Both must
 # already be sourced into the global env before this file is loaded.
 #
-# Sourced explicitly from runner scripts (e.g. myers_2018_reanalysis/1-myers.R)
-# alongside the other caspex_*.R modules. Not auto-loaded by glproxscape_analysis.R
-# \u2014 keeps the TF deck path independent of the epigenetic deck path.
+# Called by run_glproxscape(epigenetic = TRUE) or directly; kept separate
+# from the TF deck path in glproxscape_analysis.R.
 # =============================================================================
 
 # `%||%` is defined once in R/utils-internal.R and visible to every R/
@@ -163,9 +162,9 @@ predict_binding_zones_epigenetic <- function(
   # \u03b2 = s/C is the right object to threshold: it answers "where is per-
   # guide enrichment density highest?" \u2014 which is what motif-anchored
   # scoring needs. But for broad chromatin factors with relatively
-  # uniform per-region logFCs (e.g. KDM2A on hTERT with logFC\u22480.2\u20130.4
-  # across all 5 regions), \u03b2 amplifies at lone-guide edges: at R1 alone
-  # at +1100, \u03b2 \u2248 R1's logFC because numerator and denominator both
+  # uniform per-region logFCs (e.g. logFC\u22480.2\u20130.4 in every region),
+  # \u03b2 amplifies at lone-guide edges: next to an isolated outer guide,
+  # \u03b2 \u2248 that guide's logFC because numerator and denominator both
   # collapse to a single guide's contribution; in the multi-guide
   # interior at ~0 bp, \u03b2 is the kernel-weighted average of all logFCs,
   # which is *lower* than any single one. The upshot is the \u03b2-peak
@@ -1498,8 +1497,8 @@ run_glproxscape_epigenetic <- function(
     # the range from the union of all rendered factors' peak_beta values,
     # so every page in this deck shares one consistent colour scale.
     # Override when stitching multiple decks together (e.g. one shared
-    # range across hTERT + MYC for cross-locus comparison) by passing the
-    # union of both deck's ranges explicitly.
+    # range for a cross-locus comparison) by passing the union of both
+    # decks' ranges explicitly.
     peak_signal_range   = NULL,
     # \u2500\u2500 Locus-level histone-marks summary page \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
     # When TRUE, fetches ChIP-Atlas peaks for the canonical six histone
@@ -1545,9 +1544,8 @@ run_glproxscape_epigenetic <- function(
   # with the upstream TF run unless the caller explicitly overrides.
   # Critical for `upstream` / `downstream`: the zone-detection x_grid is
   # built as seq(-upstream, downstream, by = 5), and gRNAs landing outside
-  # that range produce empty signal on every factor.  Mackenzie FOXP2 sits
-  # at +980..+1194 \u2014 well past the legacy +500 default \u2014 so without this
-  # inheritance every factor returns 0 zones.
+  # that range produce empty signal on every factor (e.g. guides more
+  # than 500 bp downstream of the TSS with the legacy +500 default).
   if (is.null(kernel_sigma))
     kernel_sigma <- (result$kernel_sigma %||% 300)
   if (is.null(weight_mode))

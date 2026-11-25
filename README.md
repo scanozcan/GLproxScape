@@ -98,7 +98,7 @@ ChIP-Atlas peaks (`chipatlas = TRUE`), the HOCOMOCO bundle
 (`motif_search_engine = "hocomoco"`), the CIS-BP species archive
 (`motif_search_engine = "cisbp"`) and the Human Protein Atlas cell-line
 table (`cell_type` on a human run), all cached under
-`tools::R_user_dir("caspex", "cache")`.
+`tools::R_user_dir("glproxscape", "cache")`.
 
 ## Quick start
 
@@ -565,7 +565,7 @@ The pipeline runs in one call (`run_glproxscape`) that internally chains:
    strongest motif by default).
 7. **(Optional) ChIP-Atlas overlay** — public ChIP-seq peaks for each
    deck TF rendered beneath the predicted event bubbles for independent
-   validation. Per-SRX BEDs cached under `tools::R_user_dir("caspex",
+   validation. Per-SRX BEDs cached under `tools::R_user_dir("glproxscape",
    "cache")`.
 8. **Plotting + CSV write-out** — multi-page binding-event PDF, motif
    track, gRNA-positions plot, per-TF binding-events CSV, spatial

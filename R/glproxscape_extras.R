@@ -5,7 +5,7 @@
 #
 #   source("glproxscape_analysis.R")
 #   source("glproxscape_extras.R")
-#   result <- run_glproxscape(gene = "ATP7B", grnas = ..., data_files = ...)
+#   result <- run_glproxscape(gene = "YOUR_GENE", grnas = ..., data_files = ...)
 #   extras <- run_glproxscape_extras(result, out_dir = "glproxscape_output/extras")
 #
 # Every top-level function takes the invisible list returned by run_glproxscape()
@@ -93,10 +93,10 @@ plot_tf_one_pager <- function(result, tf_name) {
 
   # Top panel: deconvolution view (full signal + events + motif ticks).
   # Honour whichever binding-path mode produced `result` \u2014 otherwise the
-  # one-pager would silently draw smoothed-NNLS events even when the main
-  # run used coverage-aware scoring, and would disagree with result$binding_events.
+  # one-pager would silently draw events from the unnormalized track even
+  # when the main run used coverage-aware scoring, and would disagree with result$binding_events.
   # Pull upstream/downstream from the result so the A1 x-axis matches
-  # the actual window the run used (e.g. -750/+500 for Pizzolato/Gao),
+  # the actual window the run used (e.g. -750/+500),
   # not plot_binding_events's legacy default (-2500/+500).
   p_top <- plot_binding_events(
     tf_name, ld, pos_map, motif_hits,
@@ -971,8 +971,8 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
   # Roster construction:
   #   (a) EVERY TF with at least one motif-anchored event
   #       (motif_based = TRUE). No cap -- motif-anchored predictions
-  #       carry the PWM-evidence weight the paper highlights (e.g.
-  #       FOXP2-FOXP4 co-binding on the FOXP2 promoter), and
+  #       carry PWM evidence (e.g. co-binding of paralogous TFs at
+  #       shared motifs), and
   #       capping them at top-N-by-weight previously dropped real
   #       calls whenever a few peak-driven outliers had higher
   #       summed weight.
@@ -1096,7 +1096,7 @@ plot_tf_cooccurrence <- function(result, tol_bp = 50, min_events = 1,
   # Per-TF source classification for label coloring:
   # "motif-anchored" if the TF has at least one event with motif_based=TRUE
   # in the filtered set, "peak-driven" otherwise. Lets the reader
-  # distinguish JASPAR-evidence-backed TFs (e.g. FOXP2, FOXP4) from
+  # distinguish motif-backed TFs from
   # motif-free peak-detection fallbacks at a glance on the heatmap.
   tf_is_motif <- if (!is.null(ev$motif_based)) {
     vapply(tfs, function(tf)
@@ -1475,7 +1475,7 @@ plot_coverage_stack <- function(result, tf_name, kernel_sigma = NULL,
       # Window has to span [TSS=0, every guide] plus 2\u03c3 padding on each
       # side so the Gaussian kernel tails fit. Wrap pos_r with 0 so the
       # window always contains the TSS itself even when all guides sit on
-      # one side of it (e.g. Mackenzie FOXP2 \u2014 all guides are downstream).
+      # one side of it (e.g. all guides downstream of the TSS).
       pad        <- 2L * kernel_sigma
       span_lo    <- min(c(0, pos_r))
       span_hi    <- max(c(0, pos_r))

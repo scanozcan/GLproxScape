@@ -163,7 +163,7 @@ yourself by passing each value to `run_glproxscape()`.
 
 `chipatlas = TRUE` adds an independent-validation lane below the
 predicted-event bubbles. The first call downloads ~300 MB of metadata,
-caches it under `tools::R_user_dir("caspex", "cache")`, and then fetches
+caches it under `tools::R_user_dir("glproxscape", "cache")`, and then fetches
 per-SRX BED files on demand (small, also cached). Pass
 `special_interest_gene = c("EP300", "CTCF", ...)` to bypass the per-TF
 SRX cap for specific factors.

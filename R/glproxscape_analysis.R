@@ -543,10 +543,9 @@ match_all_grnas <- function(grnas, promoter_info) {
 #' onto the same |z| ≈ 8.13.  The upper-tail form avoids the catastrophic
 #' cancellation entirely, so we can push the floor down to the smallest
 #' representable double and let z range up to ~37.5.  This matters for
-#' synthesized p-value pipelines that hard-cap at 1e-300 (e.g. the Myers
-#' 2018 reanalysis loader) — without this fix, dozens of strongly enriched
-#' proteins per region all received identical z weights and the spatial
-#' deconvolution lost their relative ranking.
+#' synthesized p-value pipelines that hard-cap at 1e-300 — otherwise
+#' strongly enriched proteins in a region all receive identical z weights
+#' and lose their relative ranking.
 #'
 #' `pval_floor` exists *only* to guard against p == 0 (which would give Inf).
 #'
@@ -571,8 +570,7 @@ signed_z_from_p <- function(lfc, pval, pval_floor = .Machine$double.xmin) {
 #'
 #' Modes:
 #'   "z"          — signed z from p-value.  **Default and recommended.**
-#'                  This is the approach used in the original ATP7B run; it
-#'                  keeps the weight scale consistent across datasets that
+#'                  It keeps the weight scale consistent across datasets that
 #'                  may or may not carry a `t_stat` column. See note below.
 #'   "mod_t"      — moderated t if t_stat column is present & non-NA,
 #'                  else signed z-score from p-value. Kept for backward
@@ -853,7 +851,7 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
 #     -> list(id, name, pwm = 4 x L log-odds, len)
 #
 # On first use, the relevant MEME bundle is downloaded to a session-persistent
-# OS cache (tools::R_user_dir("caspex", "cache")). Bundle is ~few MB; parses
+# OS cache (tools::R_user_dir("glproxscape", "cache")). Bundle is ~few MB; parses
 # once per session, ~1300 PWMs (v12 CORE) or ~3000 (v11 full).
 # =============================================================================
 
@@ -910,7 +908,7 @@ fetch_jaspar_pwm <- function(tf_name, host = "https://jaspar.elixir.no") {
 #' @param species Species identifier, e.g. "homo_sapiens" or "mus_musculus".
 #' @noRd
 .hocomoco_cache_path <- function(version, species) {
-  base <- tools::R_user_dir("caspex", which = "cache")
+  base <- .glp_cache_root()
   dir.create(base, recursive = TRUE, showWarnings = FALSE)
   file.path(base, sprintf("hocomoco_%s_%s.meme", version, species))
 }
@@ -1411,7 +1409,7 @@ run_motif_scan <- function(tf_names, promoter_info, threshold_frac = 0.80,
 #' @param pos_map       From match_all_grnas()
 #' @param x_grid        bp grid (TSS-relative)
 #' @param kernel_sigma  Labeling kernel σ in bp (default 300; APEX-ish radius)
-#' @param weight_mode   "z" (default — signed z from p, ATP7B-style), "mod_t",
+#' @param weight_mode   "z" (default — signed z from p), "mod_t",
 #'                      "lfc_pos", "lfc_signed", "lfc_x_negp" (= "weighted",
 #'                      legacy).
 #'                      Only the positive part is retained for signal building
@@ -1696,9 +1694,9 @@ predict_binding_events_coverage_aware <- function(
     # to infinity, while this guard prevents \u03b2 from being evaluated in the
     # low-denominator transition band just inside the clamp (where a real
     # peak-finder / zone-finder can still see the ramp as a spurious peak
-    # or zone). Default 0.25 (= 5\u00d7 default cov_floor); raised from 0.15
-    # because \u03c3=300 extends the single-gRNA tail far enough that 0.15
-    # leaked edge events ~1.4\u03c3 west of the westernmost guide. At 0.25 the
+    # or zone). Default 0.25 (= 5\u00d7 default cov_floor):
+    # at \u03c3=300 a lower floor (e.g. 0.15) lets edge events leak ~1.4\u03c3
+    # beyond the outermost guide. At 0.25 the
     # trust boundary sits ~1\u03c3 outside an isolated guide, matching the
     # geometric assumption that \u03b2 is uninformative in the single-gRNA
     # tail (numerator and denominator are the same Gaussian and cancel).
@@ -1753,11 +1751,11 @@ predict_binding_events_coverage_aware <- function(
     # Motivates this: `max_grna_distance` gates events by distance to the
     # NEAREST guide, which protects against tail leakage past the outermost
     # gRNA, but does nothing for interior events that still get much of
-    # their \u03b2 from the westernmost / easternmost guide's kernel tail. In
-    # ATP7B at \u03c3=300, R7(-1945) contributes ~37% of the summed Gaussian
-    # weight at position -1620 even though R6(-1507) is only 113 bp away \u2014
-    # producing a huge "edge-inflated" bubble at a position that is fully
-    # inside the trusted support mask.
+    # their \u03b2 from the westernmost / easternmost guide's kernel tail. At
+    # \u03c3=300, an outermost guide ~300 bp away can contribute over a third
+    # of the summed Gaussian weight at a position even when another guide
+    # is only ~100 bp away \u2014 producing an "edge-inflated" event at a
+    # position that is fully inside the trusted support mask.
     #
     # 0.30 is a reasonable starting point \u2014 it keeps events that are
     # solidly backed by interior guides while rejecting those where a
@@ -1797,8 +1795,8 @@ predict_binding_events_coverage_aware <- function(
     #                      n_bootstrap).
     position_stability = c("none", "wild_bootstrap"),
     # Number of Wild bootstrap draws when `position_stability` is enabled.
-    # 200 is a sensible default for 95% CI-style summaries; bump to 500\u20131000
-    # for tighter tails or stable-binders for a paper figure.
+    # 200 is a sensible default for 95% CI-style summaries; use 500\u20131000
+    # for tighter tails.
     n_bootstrap        = 200L
 ) {
   merge_position     <- match.arg(merge_position)
@@ -1816,7 +1814,7 @@ predict_binding_events_coverage_aware <- function(
     stringsAsFactors = FALSE
   )
 
-  # \u2500\u2500 Wild bootstrap position stability (Myers benchmarking) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  # \u2500\u2500 Wild bootstrap position stability (diagnostic) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   # Defined as an inner closure so BOTH return paths in this function \u2014 the
   # motif-less fallback and the motif-based zone branch \u2014 get the same column
   # schema for `out`. Without this, no-motif TFs returned `ev` early without
@@ -2495,8 +2493,8 @@ plot_binding_events <- function(tf_name, long_data, pos_map, motif_hits,
   # visual noise that invites misreading. Without this clip, the ggplot
   # panel auto-expands whenever the ChIP-Atlas band is drawn at the full
   # [-upstream, downstream] width, which makes far-upstream motif clusters
-  # (e.g. the NR2F1 cluster past -2000 on ATP7B where R7 \u2248 -1900 is the
-  # westernmost guide) suddenly visible even though no events are \u2014 or
+  # (e.g. a motif cluster several hundred bp beyond the outermost guide)
+  # suddenly visible even though no events are \u2014 or
   # ever could be \u2014 called in that region. The other mini-browser decks
   # (07/09/12) intentionally show the full motif window; this detail plot
   # scopes to what the detector can actually resolve.
@@ -2662,11 +2660,8 @@ plot_binding_events <- function(tf_name, long_data, pos_map, motif_hits,
   }
 
   # Y-axis label tracks the active weight_mode rather than hard-coding
-  # "logFC-weighted". Previously the label always read "logFC-weighted" even
-  # when the curve was actually z-weighted (the default since the ATP7B-style
-  # default switch) or t-weighted, which made magnitude reads of the curve
-  # confusing \u2014 e.g., a z-weighted Myers curve peaking at ~100 looked like
-  # logFC=100 even though the per-region lfc stems on the same plot show 1-3.
+  # "logFC-weighted", so that a z- or t-weighted curve is not read on the
+  # logFC scale of the per-region stems drawn on the same plot.
   y_label <- switch(weight_mode,
     z          = "GLproxScape signal (z-weighted, signed z from p-value)",
     mod_t      = "GLproxScape signal (mod-t weighted)",
@@ -3800,8 +3795,8 @@ run_glproxscape <- function(
     #                          and matches the promoter frame used in most
     #                          TF / ChIP studies.
     #   "ENST..."            : pin to a specific Ensembl transcript ID
-    #                          (e.g. Myers 2018 MYC uses ENST00000377970
-    #                          for the P2 promoter \u2014 overrides "canonical").
+    #                          (e.g. an alternative promoter; overrides
+    #                          "canonical").
     #   NA                   : explicit legacy gene-level start/end. Subject
     #                          to Ensembl annotation drift; only use this
     #                          if you specifically need the union boundary.
@@ -3846,9 +3841,9 @@ run_glproxscape <- function(
     # that defines the in-support region for \u03b2. Set well above `cov_floor`
     # so \u03b2 is not evaluated in the low-denominator transition band at the
     # tiled-region edges (which would otherwise spawn spurious west-edge
-    # peaks / zones). Default 0.25 = 5\u00d7 default cov_floor (raised from
-    # 0.15 when kernel_sigma went 250 \u2192 300; wider kernel extends the
-    # single-gRNA tail and re-opened the edge artifact at 0.15).
+    # peaks / zones). Default 0.25 = 5\u00d7 default cov_floor (at
+    # kernel_sigma = 300 a lower value lets the single-gRNA tail produce
+    # edge artifacts).
     edge_guard_frac  = 0.25,
     # Readability guards. `zone_peak_frac` = per-zone \u03b2 floor
     # (motifs below frac \u00d7 zone_peak \u03b2 are dropped; 0 disables).
@@ -3873,8 +3868,8 @@ run_glproxscape <- function(
     # more than this fraction of the local Gaussian weight sum
     # \u03a3_i exp(-0.5\u00b7((p - r_i)/\u03c3)\u00b2). Suppresses "edge-bleed" events in the
     # tail beyond the outermost guides where a single boundary guide can
-    # inflate the NNLS \u03b2 at interior positions far from its own coordinate
-    # (seen on ATP7B at p=-1620 where R7 @ -1945 contributes ~37%).
+    # inflate the coverage-normalized track at interior positions far from
+    # its own coordinate.
     # Complements `max_grna_distance` (which is a pure geometric cap on
     # position\u2192nearest-guide): this one caps Gaussian weight-share.
     edge_grna_weight_cap = NULL,
@@ -3890,15 +3885,14 @@ run_glproxscape <- function(
     # detail panel renders a "Position support" sub-track between the event
     # bubbles and the ChIP-Atlas band.
     #
-    # Off by default because the bootstrap is N\u00d7slower and is currently
-    # used as a benchmarking diagnostic on the Myers 2018 reanalysis only.
+    # Off by default because the bootstrap is N\u00d7 slower; it is a
+    # positional-stability diagnostic.
     position_stability   = c("none", "wild_bootstrap"),
     # Number of Wild bootstrap draws when `position_stability` is enabled.
     n_bootstrap          = 200L,
     # Region-weight mode \u2014 applied to BOTH spatial model and signal building.
     # "z" (default) = signed z-score derived from the p-value, ALWAYS, even
-    # when the input files carry a `t` column. This matches the ATP7B-era
-    # CasPEX behaviour (where no t-stat was available) and keeps the
+    # when the input files carry a `t` column. This keeps the
     # smoothed-signal magnitude on a bounded scale (|z| \u2272 5) so build-
     # _caspex_signal()'s curve does not get visually dominated by a few
     # high-leverage replicates with small SE (moderated |t| can reach 15+).
@@ -3950,8 +3944,8 @@ run_glproxscape <- function(
     # union from select_motif_tfs). Setting > 0 keeps only TFs whose JASPAR
     # PWM scan in the promoter window returned at least that many hits, which
     # focuses the deck on TFs whose binding case is grounded in motif evidence
-    # rather than enrichment alone. Useful on datasets like Myers 2018 where
-    # the predicted TF list is dominated by long high-IC ZNFs that often
+    # rather than enrichment alone. Useful on datasets where the predicted
+    # TF list is dominated by long high-IC ZNFs that often
     # return a handful (or zero) hits even at motif_thresh = 0.75 \u2014 those
     # pages are mostly empty and crowd out the TFs with real motif support.
     # TFs without any JASPAR matrix (absent from result$motif_results) are
@@ -3961,9 +3955,9 @@ run_glproxscape <- function(
     # filter for Plot 10. A TF is kept iff its maximum per-region logFC across
     # the matched regions (those in pos_map) is >= this value. Default 0 = no
     # filter (all TFs surviving the motif-hit step are plotted). Useful when
-    # the upstream p-values are unreliable or saturated (e.g. Myers 2018, where
-    # P.Value is synthesized from a robust z-score and floored at 1e-300, so
-    # filtering on p loses its discriminating power) \u2014 a per-zone logFC cut
+    # the upstream p-values are unreliable or saturated (e.g. p-values
+    # synthesized from a robust z-score and floored at 1e-300, so filtering
+    # on p loses its discriminating power) \u2014 a per-zone logFC cut
     # gives an interpretable proximity-enrichment criterion that is independent
     # of the synthesized p-value pipeline. Composes AND-style with
     # deconv_min_motif_hits: both must pass.
@@ -3976,8 +3970,7 @@ run_glproxscape <- function(
     #                 *within* that pre-narrowed set.
     #   "spatial_all" \u2014 *additionally* scan every TF in the spatial model
     #                 that did not make the select_motif_tfs cut (the
-    #                 ~spatial_df$protein \ motif_tfs complement, \u2248140 TFs
-    #                 on a typical Myers run). The extra scan results live
+    #                 ~spatial_df$protein \ motif_tfs complement). The extra scan results live
     #                 in result$motif_results_extra and are *only* consumed
     #                 by Plot 10 when deconv_min_motif_hits > 0 \u2014 every other
     #                 deck still uses the unchanged motif_res so their layout
@@ -4115,8 +4108,8 @@ run_glproxscape <- function(
   has_t     <- n_with_t > 0
   # Resolve the human-readable label for the active weight source. With the
   # default `weight_mode = "z"` we always derive a signed z from the p-value,
-  # regardless of whether the input carries a `t_stat` column \u2014 this is the
-  # ATP7B-era approach and keeps the smoothed-signal magnitude bounded
+  # regardless of whether the input carries a `t_stat` column \u2014 this keeps
+  # the smoothed-signal magnitude bounded
   # (typical |z| \u2272 5 vs. moderated |t| reaching 15+ for tight replicates,
   # which inflates build_caspex_signal()'s curve without changing event
   # ranks). "mod_t" remains opt-in.
@@ -4407,19 +4400,19 @@ run_glproxscape <- function(
       # IMPORTANT semantics: a TF that fetch_jaspar_pwm() couldn't resolve
       # (no JASPAR matrix in either the user-given alias or the species/
       # paralogue lookup) is *exempt* from this filter and kept. Such TFs
-      # are common among CasPEX hits on Myers 2018 MYC \u2014 chromatin-associated
+      # are common among proximity-labeling hits \u2014 chromatin-associated
       # proteins (NONO, MTA1, SSRP1, GATAD2A/B, etc.) that don't have direct
       # sequence-specific DBDs and therefore aren't in JASPAR at all. We can
       # only fairly penalise a TF for "weak motif evidence" if it has a PWM
       # in the first place; without one, it falls through to the peak-
       # detection branch (already wired in build_caspex_signal()) and Plot 10
-      # still shows its spatial deconvolution + ChIP-Atlas peak track. This
+      # still shows its spatial track + ChIP-Atlas peak track. This
       # asymmetry only affects the original motif_tfs pool \u2014 the augment-pool
       # branch above can only add TFs that came through run_motif_scan
       # successfully (i.e., already have a PWM with >= threshold hits).
       #
-      # Useful for datasets dominated by long high-IC ZNFs (e.g. Myers 2018
-      # hTERT) where some predicted TFs have a PWM but happen to score
+      # Useful for datasets dominated by long high-IC ZNFs, where some
+      # predicted TFs have a PWM but happen to score
       # weakly at the locus, while others are PWM-less chromatin readers
       # that we still want on the deck.
       if (isTRUE(deconv_min_motif_hits > 0)) {
@@ -4480,8 +4473,7 @@ run_glproxscape <- function(
       # Order is computed in two pools so augment-mode TFs don't get an
       # alphabetical-tail page slot they don't deserve:
       #
-      #   Pool 1 \u2014 original motif_tfs (the select_motif_tfs cut, ~44 on
-      #     Myers/hTERT). Sorted by total predicted-event weight desc using
+      #   Pool 1 \u2014 original motif_tfs (the select_motif_tfs cut). Sorted by total predicted-event weight desc using
       #     `binding_events`; motif_tfs without any events fall to the
       #     alphabetical tail of pool 1 (legacy behaviour).
       #
@@ -4777,8 +4769,8 @@ run_glproxscape <- function(
     # downstream diagnostics \u2014 notably plot_coverage_stack / D3 \u2014 can
     # rebuild the correct x_grid instead of falling back to its old
     # hardcoded seq(-2500, 500, 5) which sits in the wrong place for any
-    # promoter where guides land outside that range (e.g. Mackenzie FOXP2
-    # has guides at +973..+1188, well past the legacy +500 boundary).
+    # promoter where guides land outside that range (e.g. guides more than
+    # 500 bp downstream of the TSS).
     upstream         = upstream,
     downstream       = downstream,
     # Wild bootstrap diagnostic \u2014 bookkeeping so callers / extras can detect
@@ -4865,16 +4857,16 @@ inspect_tf <- function(result, tf_name) {
   if (nrow(sp) == 0) {
     message(tf_name, " not found in spatial model")
   } else {
-    cat("\n\u2500\u2500 Spatial estimate for", tf_name, "\u2500\u2500\n")
-    cat("  Centroid  :", sprintf("%+.0f bp\n", sp$centroid))
-    cat("  Spread    :", sprintf("%.0f bp\n",  sp$spread))
-    cat("  Composite :", sprintf("%.4f\n",     sp$composite))
-    cat("  Regions   :", sp$n_regions, "\n")
-    cat("  Mean logFC:", sprintf("%.3f\n",     sp$mean_lfc))
-    cat("  Min p-val :", format(sp$min_pval, digits = 3), "\n")
+    message("\n\u2500\u2500 Spatial estimate for ", tf_name, " \u2500\u2500")
+    message("  Centroid  : ", sprintf("%+.0f bp", sp$centroid))
+    message("  Spread    : ", sprintf("%.0f bp",  sp$spread))
+    message("  Composite : ", sprintf("%.4f",     sp$composite))
+    message("  Regions   : ", sp$n_regions)
+    message("  Mean logFC: ", sprintf("%.3f",     sp$mean_lfc))
+    message("  Min p-val : ", format(sp$min_pval, digits = 3))
   }
   if (tf_name %in% names(result$motif_results)) {
-    cat("  Motif hits:", result$motif_results[[tf_name]]$n_hits, "\n")
+    message("  Motif hits: ", result$motif_results[[tf_name]]$n_hits)
   }
   print(p)
   invisible(p)
@@ -4967,10 +4959,10 @@ check_transcripts <- function(gene,
   inputs <- load_glproxscape_inputs(manifest_path, manifest = manifest)
   grnas  <- inputs$grnas
   if (verbose) {
-    cat("=== sgRNA manifest ===\n")
+    message("=== sgRNA manifest ===")
     for (i in seq_along(grnas))
-      cat(sprintf("  %s : %s\n", names(grnas)[i], grnas[[i]]))
-    cat(sprintf("\n=== Looking up %s in Ensembl (%s) ===\n", gene, species))
+      message(sprintf("  %s : %s", names(grnas)[i], grnas[[i]]))
+    message(sprintf("\n=== Looking up %s in Ensembl (%s) ===", gene, species))
   }
   js <- ensembl_get(paste0("/lookup/symbol/", species, "/", gene),
                     params = list(expand = 1,
@@ -4982,7 +4974,7 @@ check_transcripts <- function(gene,
     stop("No transcripts returned for ", gene)
 
   if (verbose)
-    cat(sprintf("Gene span: chr%s:%d-%d, strand=%s, %d transcripts\n",
+    message(sprintf("Gene span: chr%s:%d-%d, strand=%s, %d transcripts",
                 js$seq_region_name, js$start, js$end,
                 if (js$strand == 1) "+" else "-", length(tx_list)))
 
@@ -4990,7 +4982,7 @@ check_transcripts <- function(gene,
     bt   <- vapply(tx_list, function(tx) tx$biotype %||% "", character(1))
     keep <- bt %in% biotype_filter
     if (verbose)
-      cat(sprintf("Filtering by biotype %s: %d / %d transcripts kept\n",
+      message(sprintf("Filtering by biotype %s: %d / %d transcripts kept",
                   paste(biotype_filter, collapse = ","),
                   sum(keep), length(tx_list)))
     tx_list <- tx_list[keep]
@@ -5004,7 +4996,7 @@ check_transcripts <- function(gene,
          transcript_id = tx$id)
 
   if (verbose)
-    cat(sprintf("\n=== Testing %d transcript(s) with window upstream=%d / downstream=%d bp ===\n\n",
+    message(sprintf("\n=== Testing %d transcript(s) with window upstream=%d / downstream=%d bp ===\n",
                 length(tx_list), upstream, downstream))
 
   results <- vector("list", length(tx_list))
@@ -5014,7 +5006,7 @@ check_transcripts <- function(gene,
     is_canon <- isTRUE(tx$is_canonical == 1)
     bio <- tx$biotype %||% NA_character_
     if (verbose)
-      cat(sprintf("[%d/%d] %s%s  biotype=%s  span=%d-%d (%d bp)  TSS=%d\n",
+      message(sprintf("[%d/%d] %s%s  biotype=%s  span=%d-%d (%d bp)  TSS=%d",
                   i, length(tx_list), tx$id,
                   if (is_canon) "  [canonical]" else "",
                   bio, tx$start, tx$end, tx$end - tx$start + 1, gi$tss))
@@ -5042,12 +5034,12 @@ check_transcripts <- function(gene,
     if (verbose) {
       for (r in names(grnas)) {
         if (!is.na(positions[[r]]))
-          cat(sprintf("    %-3s : %+d bp (%s strand)\n",
+          message(sprintf("    %-3s : %+d bp (%s strand)",
                       r, as.integer(positions[[r]]), strands[[r]]))
         else
-          cat(sprintf("    %-3s : no match\n", r))
+          message(sprintf("    %-3s : no match", r))
       }
-      cat(sprintf("    -> %d / %d sgRNAs matched\n\n",
+      message(sprintf("    -> %d / %d sgRNAs matched\n",
                   n_matched, length(grnas)))
     }
     results[[i]] <- list(tx = tx$id, biotype = bio, is_canon = is_canon,
@@ -5057,28 +5049,28 @@ check_transcripts <- function(gene,
   ord <- order(vapply(results, function(r) r$n_matched %||% -1L, integer(1)),
                decreasing = TRUE, na.last = TRUE)
   if (verbose) {
-    cat("=== Summary (sorted by sgRNAs matched, DESC) ===\n")
+    message("=== Summary (sorted by sgRNAs matched, DESC) ===")
     hdr <- sprintf("%-18s  %-22s  %-10s  %10s  %s",
                    "transcript", "biotype", "canonical", "TSS",
                    paste(sprintf("%6s", names(grnas)), collapse = "  "))
-    cat(hdr, "\n"); cat(strrep("-", nchar(hdr)), "\n")
+    message(hdr); message(strrep("-", nchar(hdr)))
     for (i in ord) {
       r <- results[[i]]
       pos_str <- vapply(names(grnas), function(rg) {
         p <- r$positions[[rg]]
         if (is.na(p)) "    -" else sprintf("%+6d", as.integer(p))
       }, character(1))
-      cat(sprintf("%-18s  %-22s  %-10s  %10d  %s\n",
+      message(sprintf("%-18s  %-22s  %-10s  %10d  %s",
                   r$tx, r$biotype %||% "-",
                   if (isTRUE(r$is_canon)) "yes" else "no",
                   r$tss, paste(pos_str, collapse = "  ")))
     }
     best <- which.max(vapply(results, function(r) r$n_matched %||% -1L,
                               integer(1)))
-    cat("\n=== Recommendation ===\n")
-    cat(sprintf("Best transcript: %s  (%d / %d sgRNAs matched)\n",
+    message("\n=== Recommendation ===")
+    message(sprintf("Best transcript: %s  (%d / %d sgRNAs matched)",
                 results[[best]]$tx, results[[best]]$n_matched, length(grnas)))
-    cat(sprintf("Use in run_glproxscape():  transcript = \"%s\"\n",
+    message(sprintf("Use in run_glproxscape():  transcript = \"%s\"",
                 results[[best]]$tx))
   }
   rows <- lapply(results, function(r) {

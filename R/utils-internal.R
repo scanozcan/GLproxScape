@@ -116,3 +116,27 @@ COLS <- list(
   })
   invisible(ok)
 }
+
+#' Root of the GLproxScape on-disk cache
+#'
+#' `tools::R_user_dir("glproxscape", "cache")`. Earlier versions cached
+#' downloads (ChIP-Atlas, HOCOMOCO, CIS-BP, Human Protein Atlas) under
+#' `tools::R_user_dir("caspex", "cache")`. If only the old folder exists, it is
+#' moved to the new location once and a link is left at the old path, so
+#' downloaded files are reused and scripts that still use the old folder keep
+#' working.
+#' @noRd
+.glp_cache_root <- function() {
+  new <- tools::R_user_dir("glproxscape", which = "cache")
+  if (!dir.exists(new)) {
+    old <- tools::R_user_dir("caspex", which = "cache")
+    if (dir.exists(old) && !nzchar(Sys.readlink(old))) {
+      dir.create(dirname(new), recursive = TRUE, showWarnings = FALSE)
+      if (isTRUE(file.rename(old, new))) {
+        suppressWarnings(file.symlink(new, old))
+        message("GLproxScape cache moved from ", old, " to ", new, ".")
+      }
+    }
+  }
+  new
+}
