@@ -123,6 +123,10 @@ ChIP-Atlas, HOCOMOCO and CIS-BP files are reused.
   (293, 293T, 293FT) count as one cell line.
 - The epigenetic deck now uses the same ChIP-Atlas genome as the TF scan
   (previously always hg38).
+- Mouse ChIP-Atlas (mm10): the Ensembl archive REST server used for the
+  GRCm39 -> GRCm38 lift-over (e102.rest.ensembl.org) has been retired, which
+  left mouse runs without ChIP-Atlas peaks. The TSS is now mapped with the
+  Ensembl /map endpoint of the current REST server.
 
 ## References
 

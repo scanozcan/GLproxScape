@@ -389,6 +389,30 @@
     "Ensembl archive (preferred) or rtracklayer chain file (fallback).",
     call. = FALSE)
 
+  # --- Strategy 0: Ensembl assembly mapping on the current REST server -----
+  # The Ensembl archive REST servers (e.g. e102.rest.ensembl.org) have been
+  # retired and now redirect to a help page, so map the TSS with the /map
+  # endpoint of the current server instead (e.g. GRCm39 -> GRCm38).
+  mapped <- tryCatch({
+    chr0 <- sub("^chr", "", as.character(gene_info$chr))
+    js <- ensembl_get(paste0("/map/", gene_info$species, "/", ens_asm_base, "/",
+                             chr0, ":", gene_info$tss, "..", gene_info$tss,
+                             ":1/", expected_ens))
+    mp <- js$mappings
+    if (length(mp) >= 1 && !is.null(mp[[1]]$mapped$start)) mp[[1]]$mapped else NULL
+  }, error = function(e) NULL)
+  if (!is.null(mapped)) {
+    lifted <- gene_info
+    lifted$tss <- as.integer(mapped$start)
+    lifted$chr <- as.character(mapped$seq_region_name)
+    message(sprintf(
+      "  Mapped TSS with Ensembl /map (%s -> %s): %d -> %d (delta %+d bp)",
+      ens_asm, expected_ens, gene_info$tss, lifted$tss,
+      lifted$tss - gene_info$tss))
+    assign(cache_key, lifted, envir = .LIFTOVER_CACHE)
+    return(lifted)
+  }
+
   # --- Strategy 1: Ensembl archive lookup ---------------------------------
   archive_url <- .UCSC_TO_ENSEMBL_ARCHIVE[[chipatlas_genome]]
   if (!is.null(archive_url)) {
