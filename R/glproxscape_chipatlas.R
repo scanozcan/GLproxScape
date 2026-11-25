@@ -405,6 +405,11 @@
     lifted <- gene_info
     lifted$tss <- as.integer(mapped$start)
     lifted$chr <- as.character(mapped$seq_region_name)
+    # The query is sent on the + strand; a mapped strand of -1 means the
+    # region is inverted between the two assemblies, so the gene's strand
+    # flips too (the window is then built on the correct side of the TSS).
+    if (!is.null(mapped$strand) && as.integer(mapped$strand) == -1L)
+      lifted$strand <- -as.integer(gene_info$strand)
     message(sprintf(
       "  Mapped TSS with Ensembl /map (%s -> %s): %d -> %d (delta %+d bp)",
       ens_asm, expected_ens, gene_info$tss, lifted$tss,
