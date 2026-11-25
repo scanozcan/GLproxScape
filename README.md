@@ -410,9 +410,8 @@ gRNA-positions plot are diagnostics for the underlying signal.
 
 All arguments of `run_glproxscape()` with their defaults, using the example
 from "Running the analysis" and grouped by step. Values marked "default" can
-be left out; the others turn on optional features (CIS-BP motifs,
-cell-type-aware ChIP-Atlas, histone marks and expression, the positional
-bootstrap). Full descriptions: `?run_glproxscape`.
+be left out; the others turn on optional features (cell-type-aware
+ChIP-Atlas, histone marks and expression, the positional bootstrap). Full descriptions: `?run_glproxscape`.
 
 ```r
 res <- run_glproxscape(
@@ -448,7 +447,7 @@ res <- run_glproxscape(
   signal_weight         = NULL,                # default: same as weight_mode
 
   # -- Motif scan ----------------------------------------------------------------
-  motif_search_engine   = "cisbp",             # default "jaspar"; or "hocomoco"
+  motif_search_engine   = "jaspar",            # default; "hocomoco" or "cisbp"
   motif_thresh          = 0.75,                # default 0.80 (fraction of max PWM score)
   motif_score_weight    = "none",              # default; "linear", "log"
   motif_scan_pool       = "selected",          # default; "spatial_all"
